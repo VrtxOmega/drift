@@ -5,8 +5,8 @@
 
 import { fetchUser, fetchRepos, fetchAllCommits, computeStats } from './github.js';
 import { initScene, startLoop, onUpdate, flyTo, resetCamera, getRaycaster, scene, camera } from './scene.js';
-import { createBackgroundStars, createMilkyWay, createNebula } from './background.js';
-import { createGalaxies, createConstellations, updateConstellations, galaxyGroups, galaxyMeta } from './galaxy.js';
+import { createBackgroundStars, createMilkyWay, createNebula, updateAmbientBreathing } from './background.js';
+import { createGalaxies, createConstellations, updateConstellations, galaxyGroups, galaxyMeta, setHoveredGalaxy, getGalaxyRotationSpeed } from './galaxy.js';
 import { renderShareCard, copyShareCard, downloadShareCard } from './share.js';
 import * as THREE from 'three';
 
@@ -60,7 +60,21 @@ async function launch() {
     // 2. Fetch repos
     const repos = await fetchRepos(username, msg => setProgress(25, msg));
     if (repos.length === 0) {
-      throw new Error('NO_REPOS');
+      // Never-empty: even 0 repos = ambient presence
+      createMilkyWay();
+      setProgress(100, 'Empty universe — but something is here, waiting');
+      await delay(1000);
+      $loading.classList.add('hidden');
+      $hud.classList.remove('hidden');
+      $hudUser.textContent = `@${user.login}`;
+      $hudStats.innerHTML = [
+        stat('0', 'COMMITS'),
+        stat('0', 'REPOS'),
+        stat('—', 'MAX STREAK'),
+        stat('—', 'TOP LANG'),
+        stat('0', 'ACTIVE DAYS')
+      ].join('');
+      return;
     }
     setProgress(35, `Found ${repos.length} repositories`);
 
@@ -180,18 +194,21 @@ function registerHover() {
 
     if (found && found !== hovered) {
       hovered = found;
+      setHoveredGalaxy(found);  // Hover slowdown
       const meta = galaxyMeta.get(found);
       if (meta) {
+        const state = getEmotionalState(meta.lastPush, meta.commits);
         $tooltip.innerHTML = `
           <div class="tooltip-repo">${meta.name}</div>
           <div class="tooltip-lang">${meta.language} · ★ ${meta.stars}</div>
-          <div class="tooltip-stats">${meta.commits} commits · last push ${formatRelative(meta.lastPush)}</div>
+          <div class="tooltip-stats">${meta.commits} commits · <span class="tooltip-state tooltip-${state.class}">${state.label}</span></div>
         `;
         $tooltip.classList.remove('hidden');
       }
       canvas.style.cursor = 'pointer';
     } else if (!found && hovered) {
       hovered = null;
+      setHoveredGalaxy(null);  // Release slowdown
       $tooltip.classList.add('hidden');
       canvas.style.cursor = 'grab';
     }
@@ -260,10 +277,28 @@ function formatRelative(dateStr) {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-// ── Galaxy rotation + constellation synapse animation ──
+// ── Galaxy rotation + constellation synapse animation + ambient breathing ──
 onUpdate((dt, elapsed) => {
+  // Galaxy rotation with hover slowdown
   for (const group of galaxyGroups) {
-    group.rotation.y += dt * 0.05;
+    const speed = getGalaxyRotationSpeed(group);
+    group.rotation.y += dt * 0.05 * speed;
   }
+  // Constellation neural synapses
   updateConstellations(dt, elapsed);
+  // Global ambient breathing (never dead)
+  updateAmbientBreathing(elapsed);
 });
+
+// ── Emotional State System ──
+// Maps repo activity to emotional labels instead of raw dates
+function getEmotionalState(lastPush, commitCount) {
+  if (!lastPush) return { label: 'unknown', class: 'dormant' };
+  const days = Math.floor((Date.now() - new Date(lastPush).getTime()) / 86400000);
+  if (days <= 1) return { label: '⚡ firing', class: 'alive' };
+  if (days <= 7) return { label: '✨ active', class: 'active' };
+  if (days <= 30) return { label: 'quiet', class: 'quiet' };
+  if (days <= 90) return { label: 'resting', class: 'quiet' };
+  if (days <= 365) return { label: 'dormant', class: 'dormant' };
+  return { label: 'deep sleep', class: 'dormant' };
+}

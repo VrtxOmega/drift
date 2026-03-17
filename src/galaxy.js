@@ -68,6 +68,25 @@ export const galaxyGroups = [];
 /** Repo metadata map (name → details) */
 export const galaxyMeta = new Map();
 
+/** Hover slowdown state */
+let _hoveredGalaxyName = null;
+
+/** Set which galaxy is being hovered (null = none) */
+export function setHoveredGalaxy(name) { _hoveredGalaxyName = name; }
+
+/** Get rotation speed for a galaxy (slows near hovered) */
+export function getGalaxyRotationSpeed(group) {
+  if (!_hoveredGalaxyName) return 1.0;
+  if (group.userData.repoName === _hoveredGalaxyName) return 0.15; // nearly stop
+  // Nearby galaxies also slow slightly
+  const hovered = galaxyGroups.find(g => g.userData.repoName === _hoveredGalaxyName);
+  if (!hovered) return 1.0;
+  const dist = group.position.distanceTo(hovered.position);
+  if (dist < 30) return 0.3;
+  if (dist < 60) return 0.6;
+  return 1.0;
+}
+
 /**
  * Generate all galaxies from repo + commit data.
  */
@@ -113,7 +132,8 @@ export function createGalaxies(repos, commitMap, stats) {
 
 /**
  * Create a single galaxy (repo) at a position.
- * v2: Much softer core, vivid language tint, larger commit stars
+ * v3: Sparse amplification — fewer commits = bigger per-star impact
+ *     Minimum galaxy size raised so low-activity users feel present
  */
 function createSingleGalaxy(repo, commits, position, maxCommits) {
   const group = new THREE.Group();
@@ -121,10 +141,15 @@ function createSingleGalaxy(repo, commits, position, maxCommits) {
   group.userData = { repoName: repo.name };
 
   const langColor = LANG_COLORS[repo.language] || LANG_COLORS.default;
-  // Scale galaxy size relative to the largest repo (1.5 to 6 range)
+  // Scale galaxy size: minimum 3 (never tiny), max 7
   const relSize = commits.length / maxCommits;
-  const galaxySize = 1.5 + relSize * 4.5;
+  const galaxySize = 3 + relSize * 4;
   const isSpiral = commits.length > 15;
+
+  // SPARSE AMPLIFICATION: fewer commits = bigger individual star impact
+  const sparseFactor = commits.length < 5 ? 2.5 :
+                       commits.length < 15 ? 1.8 :
+                       commits.length < 50 ? 1.3 : 1.0;
 
   // ── Galaxy core glow (MUCH softer — smaller, more transparent) ──
   const coreGeo = new THREE.SphereGeometry(galaxySize * 0.12, 16, 16);
@@ -226,7 +251,7 @@ function createSingleGalaxy(repo, commits, position, maxCommits) {
 
     const starMat = new THREE.PointsMaterial({
       vertexColors: true,
-      size: 0.7,     // much bigger stars
+      size: 0.7 * sparseFactor,  // sparse = BIGGER stars
       sizeAttenuation: true,
       transparent: true,
       opacity: 0.95,

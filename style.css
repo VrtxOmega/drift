@@ -315,6 +315,33 @@ html, body {
   color: var(--text-dim);
   font-family: var(--font-mono);
 }
+.tooltip-state {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.tooltip-alive {
+  color: var(--green);
+  background: rgba(92, 232, 122, 0.12);
+  border: 1px solid rgba(92, 232, 122, 0.2);
+}
+.tooltip-active {
+  color: var(--blue);
+  background: rgba(74, 142, 255, 0.12);
+  border: 1px solid rgba(74, 142, 255, 0.2);
+}
+.tooltip-quiet {
+  color: var(--text-secondary);
+  background: rgba(138, 138, 160, 0.1);
+  border: 1px solid rgba(138, 138, 160, 0.15);
+}
+.tooltip-dormant {
+  color: var(--text-dim);
+  background: rgba(74, 74, 106, 0.1);
+  border: 1px solid rgba(74, 74, 106, 0.15);
+}
 
 /* ══════════════════════════════════════════════════════
    MODAL (SHARE CARD)

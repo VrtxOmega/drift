@@ -1,11 +1,16 @@
 // ══════════════════════════════════════════════════════
-// DRIFT — Background Renderer
-// Nebula, Milky Way band, star field
-// Ported from Constellation Journal's proven pipeline
+// DRIFT — Background Renderer + Ambient Breathing System
+// Nebula, Milky Way band, star field, global pulse
+// Never empty — always alive, just quiet
 // ══════════════════════════════════════════════════════
 
 import * as THREE from 'three';
 import { scene } from './scene.js';
+
+/** Stored references for animation */
+let starFieldMat = null;
+let milkyWayMat = null;
+let nebulaMat = null;
 
 /**
  * Create the background star field.
@@ -15,10 +20,8 @@ export function createBackgroundStars() {
   const count = 3000;
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
-  const sizes = new Float32Array(count);
 
   for (let i = 0; i < count; i++) {
-    // Random position on a spherical shell
     const r = 100 + Math.random() * 80;
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
@@ -31,16 +34,13 @@ export function createBackgroundStars() {
     colors[i * 3] = 0.6 + warmth * 0.35;
     colors[i * 3 + 1] = 0.6 + warmth * 0.3;
     colors[i * 3 + 2] = 0.7 + warmth * 0.3;
-
-    sizes[i] = 0.3 + Math.random() * 1.2;
   }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-  const mat = new THREE.PointsMaterial({
+  starFieldMat = new THREE.PointsMaterial({
     vertexColors: true,
     size: 0.8,
     sizeAttenuation: true,
@@ -50,7 +50,7 @@ export function createBackgroundStars() {
     depthWrite: false
   });
 
-  const points = new THREE.Points(geo, mat);
+  const points = new THREE.Points(geo, starFieldMat);
   points.renderOrder = -3;
   scene.add(points);
   return points;
@@ -64,7 +64,6 @@ export function createMilkyWay() {
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
 
-  // Galactic plane tilt
   const tilt = 63 * Math.PI / 180;
   const rot = 123 * Math.PI / 180;
 
@@ -78,7 +77,6 @@ export function createMilkyWay() {
     let y = vSpread;
     let z = r * Math.sin(angle) + spread;
 
-    // Rotate to galactic plane
     const y2 = y * Math.cos(tilt) - z * Math.sin(tilt);
     const z2 = y * Math.sin(tilt) + z * Math.cos(tilt);
     const x2 = x * Math.cos(rot) - z2 * Math.sin(rot);
@@ -104,7 +102,7 @@ export function createMilkyWay() {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-  const mat = new THREE.PointsMaterial({
+  milkyWayMat = new THREE.PointsMaterial({
     vertexColors: true,
     size: 0.6,
     sizeAttenuation: true,
@@ -114,20 +112,19 @@ export function createMilkyWay() {
     depthWrite: false
   });
 
-  const points = new THREE.Points(geo, mat);
+  const points = new THREE.Points(geo, milkyWayMat);
   points.renderOrder = -1;
   scene.add(points);
   return points;
 }
 
 /**
- * Create a subtle nebula fog via a BackSide sphere with color wash.
+ * Create a subtle nebula fog via a BackSide sphere.
  */
 export function createNebula() {
   const geo = new THREE.SphereGeometry(130, 32, 32);
 
-  // Simple color-tinted material since we can't use custom shaders easily in vanilla
-  const mat = new THREE.MeshBasicMaterial({
+  nebulaMat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(0x1a0a3e),
     side: THREE.BackSide,
     transparent: true,
@@ -136,8 +133,39 @@ export function createNebula() {
     depthWrite: false
   });
 
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(geo, nebulaMat);
   mesh.renderOrder = -2;
   scene.add(mesh);
   return mesh;
+}
+
+/**
+ * Global ambient breathing system.
+ * Makes the entire scene feel alive — slow pulse on stars,
+ * milky way, and nebula. Never dead, just quiet.
+ * @param {number} elapsed - Total elapsed time from clock
+ */
+export function updateAmbientBreathing(elapsed) {
+  // Star field: gentle brightness breathing (4s cycle)
+  if (starFieldMat) {
+    const starBreath = 0.5 + 0.5 * Math.sin(elapsed * 0.4);
+    starFieldMat.opacity = 0.60 + starBreath * 0.15;
+  }
+
+  // Milky Way: slower, deeper breath (7s cycle)
+  if (milkyWayMat) {
+    const mwBreath = 0.5 + 0.5 * Math.sin(elapsed * 0.25 + 1.0);
+    milkyWayMat.opacity = 0.12 + mwBreath * 0.06;
+  }
+
+  // Nebula: very slow color shift (12s cycle) — subtle warmth pulse
+  if (nebulaMat) {
+    const nebBreath = 0.5 + 0.5 * Math.sin(elapsed * 0.15 + 2.0);
+    nebulaMat.opacity = 0.06 + nebBreath * 0.04;
+    // Shift between cool purple and slightly warm
+    const r = 0x1a / 255 + nebBreath * 0.03;
+    const g = 0x0a / 255 + nebBreath * 0.01;
+    const b = 0x3e / 255 - nebBreath * 0.02;
+    nebulaMat.color.setRGB(r, g, b);
+  }
 }
