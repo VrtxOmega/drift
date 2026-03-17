@@ -267,17 +267,25 @@ function createSingleGalaxy(repo, commits, position, maxCommits) {
   return group;
 }
 
+// ══════════════════════════════════════════════════════
+// NEURAL SYNAPSE CONSTELLATION SYSTEM
+// Living, pulsing, firing connections between streak days
+// ══════════════════════════════════════════════════════
+
+/** Stores all animated synapse data for the render loop */
+const synapses = [];
+
 /**
- * Create streak constellation lines.
- * v2: Only 5+ day streaks, gold color, much subtler opacity,
- *     curves instead of straight lines
+ * Create streak constellations as living neural synapses.
+ * v3: Pulsing lines, energy pulses traveling along curves,
+ *     glowing nodes, electric gold + cyan highlights
  */
 export function createConstellations(stats) {
   const dailyCommits = stats.dailyCommits;
   const dates = Object.keys(dailyCommits).sort();
   if (dates.length < 2) return;
 
-  // Find consecutive day streaks — minimum 5 days now
+  // Find consecutive day streaks — minimum 4 days
   const streaks = [];
   let current = [dates[0]];
 
@@ -288,17 +296,21 @@ export function createConstellations(stats) {
     if (gap <= 1) {
       current.push(dates[i]);
     } else {
-      if (current.length >= 5) streaks.push([...current]);
+      if (current.length >= 4) streaks.push([...current]);
       current = [dates[i]];
     }
   }
-  if (current.length >= 5) streaks.push(current);
+  if (current.length >= 4) streaks.push(current);
 
-  // Only draw top 6 longest streaks to avoid clutter
+  // Top 5 longest streaks
   streaks.sort((a, b) => b.length - a.length);
-  const topStreaks = streaks.slice(0, 6);
+  const topStreaks = streaks.slice(0, 5);
 
-  for (const streak of topStreaks) {
+  for (let si = 0; si < topStreaks.length; si++) {
+    const streak = topStreaks[si];
+    const intensity = Math.min(1, streak.length / 14);
+
+    // Map dates to 3D positions
     const points = streak.map((d) => {
       const dayOfYear = Math.floor((new Date(d) - new Date(d.slice(0, 4) + '-01-01')) / 86400000);
       const goldenAngle = Math.PI * (3 - Math.sqrt(5));
@@ -312,41 +324,150 @@ export function createConstellations(stats) {
       );
     });
 
-    // Smooth curve through the points
+    // Smooth curve
     const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.5);
-    const curvePoints = curve.getPoints(streak.length * 4);
-    const geo = new THREE.BufferGeometry().setFromPoints(curvePoints);
+    const resolution = streak.length * 8;
+    const curvePoints = curve.getPoints(resolution);
 
-    const intensity = Math.min(1, streak.length / 20);
-    const mat = new THREE.LineBasicMaterial({
-      color: new THREE.Color(0xc9b06b),
+    // ── 1. BASE LINE: hot amber-gold (NOT olive #d4af37) ──
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(curvePoints);
+    const lineMat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(0xffb347),
       transparent: true,
-      opacity: 0.06 + intensity * 0.12,  // much subtler
+      opacity: 0.25 + intensity * 0.25,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
-
-    const line = new THREE.Line(geo, mat);
+    const line = new THREE.Line(lineGeo, lineMat);
     scene.add(line);
 
-    // Add small gold dots at each streak node
-    const nodePositions = new Float32Array(points.length * 3);
-    points.forEach((p, i) => {
-      nodePositions[i * 3] = p.x;
-      nodePositions[i * 3 + 1] = p.y;
-      nodePositions[i * 3 + 2] = p.z;
-    });
-    const nodeGeo = new THREE.BufferGeometry();
-    nodeGeo.setAttribute('position', new THREE.BufferAttribute(nodePositions, 3));
-    const nodeMat = new THREE.PointsMaterial({
-      color: 0xc9b06b,
-      size: 0.5,
-      sizeAttenuation: true,
+    // ── 2. GLOW LINE: warm amber outer glow ──
+    const glowMat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(0xff8c00),
       transparent: true,
-      opacity: 0.3 + intensity * 0.3,
+      opacity: 0.08 + intensity * 0.12,
       blending: THREE.AdditiveBlending,
-      depthWrite: false
+      depthWrite: false,
+      linewidth: 1
     });
-    scene.add(new THREE.Points(nodeGeo, nodeMat));
+    const glowLine = new THREE.Line(lineGeo.clone(), glowMat);
+    scene.add(glowLine);
+
+    // ── 3. NODE GLOW: pulsing orbs at each day ──
+    const nodeMats = [];
+    for (let ni = 0; ni < points.length; ni++) {
+      const nodeGeo = new THREE.SphereGeometry(0.3 + intensity * 0.3, 8, 8);
+      const nodeMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0xffd700),
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const node = new THREE.Mesh(nodeGeo, nodeMat);
+      node.position.copy(points[ni]);
+      scene.add(node);
+      nodeMats.push(nodeMat);
+    }
+
+    // ── 4. ENERGY PULSES: particles that travel along the curve ──
+    // Multiple pulses per synapse, staggered
+    const pulseCount = 2 + Math.floor(intensity * 3); // 2-5 pulses
+    const pulseMats = [];
+    const pulseSprites = [];
+    const pulsePhases = [];
+
+    // Create a glowing pulse texture
+    const pulseCanvas = document.createElement('canvas');
+    pulseCanvas.width = 64;
+    pulseCanvas.height = 64;
+    const pctx = pulseCanvas.getContext('2d');
+    const pGrad = pctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    pGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');   // white-hot core
+    pGrad.addColorStop(0.1, 'rgba(255, 215, 0, 0.95)');   // pure gold
+    pGrad.addColorStop(0.25, 'rgba(255, 179, 71, 0.7)');  // amber
+    pGrad.addColorStop(0.5, 'rgba(255, 140, 0, 0.3)');    // dark orange
+    pGrad.addColorStop(0.75, 'rgba(255, 100, 0, 0.08)');  // ember
+    pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    pctx.fillStyle = pGrad;
+    pctx.fillRect(0, 0, 64, 64);
+    const pulseTex = new THREE.CanvasTexture(pulseCanvas);
+
+    for (let pi = 0; pi < pulseCount; pi++) {
+      const pMat = new THREE.SpriteMaterial({
+        map: pulseTex,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 0.0
+      });
+      const sprite = new THREE.Sprite(pMat);
+      const baseSize = 1.0 + intensity * 1.5;
+      sprite.scale.set(baseSize, baseSize, 1);
+      sprite.position.copy(points[0]);
+      scene.add(sprite);
+      pulseMats.push(pMat);
+      pulseSprites.push(sprite);
+      pulsePhases.push(pi / pulseCount); // stagger evenly
+    }
+
+    // Store synapse data for animation
+    synapses.push({
+      curve,
+      curveLength: curve.getLength(),
+      lineMat,
+      glowMat,
+      nodeMats,
+      pulseSprites,
+      pulseMats,
+      pulsePhases,
+      pulseCount,
+      intensity,
+      speed: 0.08 + intensity * 0.12, // faster for longer streaks
+      nodePositions: points
+    });
+  }
+}
+
+/**
+ * Update all constellation synapses each frame.
+ * Call this from the render loop via onUpdate.
+ * @param {number} dt - Delta time
+ * @param {number} elapsed - Total elapsed time
+ */
+export function updateConstellations(dt, elapsed) {
+  for (const syn of synapses) {
+    // ── Pulse base line opacity ──
+    const basePulse = 0.5 + 0.5 * Math.sin(elapsed * 1.5 + syn.intensity * 10);
+    syn.lineMat.opacity = (0.20 + syn.intensity * 0.25) * (0.6 + basePulse * 0.4);
+    syn.glowMat.opacity = (0.06 + syn.intensity * 0.10) * (0.4 + basePulse * 0.6);
+
+    // ── Pulse node glow ──
+    for (let ni = 0; ni < syn.nodeMats.length; ni++) {
+      const nodePhase = elapsed * 2.0 + ni * 1.7;
+      const nodePulse = 0.5 + 0.5 * Math.sin(nodePhase);
+      syn.nodeMats[ni].opacity = 0.3 + nodePulse * 0.6 * syn.intensity;
+    }
+
+    // ── Move energy pulses along the curve ──
+    for (let pi = 0; pi < syn.pulseCount; pi++) {
+      // Advance phase
+      syn.pulsePhases[pi] += dt * syn.speed;
+      if (syn.pulsePhases[pi] > 1.0) syn.pulsePhases[pi] -= 1.0;
+
+      const t = syn.pulsePhases[pi];
+      const pos = syn.curve.getPointAt(t);
+      syn.pulseSprites[pi].position.copy(pos);
+
+      // Pulse intensity: bright in the middle of travel, fades at ends
+      const edgeFade = Math.min(t * 5, (1 - t) * 5, 1.0);
+      const flicker = 0.7 + 0.3 * Math.sin(elapsed * 8 + pi * 3.14);
+      syn.pulseMats[pi].opacity = edgeFade * flicker * (0.5 + syn.intensity * 0.5);
+
+      // Scale shimmer
+      const sizeBase = 1.0 + syn.intensity * 1.5;
+      const sizePulse = sizeBase * (0.8 + 0.4 * Math.sin(elapsed * 6 + pi * 2));
+      syn.pulseSprites[pi].scale.set(sizePulse, sizePulse, 1);
+    }
   }
 }

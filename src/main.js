@@ -6,7 +6,7 @@
 import { fetchUser, fetchRepos, fetchAllCommits, computeStats } from './github.js';
 import { initScene, startLoop, onUpdate, flyTo, resetCamera, getRaycaster, scene, camera } from './scene.js';
 import { createBackgroundStars, createMilkyWay, createNebula } from './background.js';
-import { createGalaxies, createConstellations, galaxyGroups, galaxyMeta } from './galaxy.js';
+import { createGalaxies, createConstellations, updateConstellations, galaxyGroups, galaxyMeta } from './galaxy.js';
 import { renderShareCard, copyShareCard, downloadShareCard } from './share.js';
 import * as THREE from 'three';
 
@@ -260,9 +260,10 @@ function formatRelative(dateStr) {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-// ── Galaxy rotation animation ──
+// ── Galaxy rotation + constellation synapse animation ──
 onUpdate((dt, elapsed) => {
   for (const group of galaxyGroups) {
     group.rotation.y += dt * 0.05;
   }
+  updateConstellations(dt, elapsed);
 });
