@@ -45,7 +45,7 @@ const updateCallbacks = [];
 export function initScene(canvas) {
   // Scene
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x020208);  // true deep black void
+  scene.background = new THREE.Color(0x000000);  // absolute black
 
   // Camera — wider FOV for immersive 3D depth
   camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 600);
@@ -69,9 +69,9 @@ export function initScene(canvas) {
   const renderPass = new RenderPass(scene, camera);
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.8,    // strength — how much glow bleeds out
-    0.4,    // radius — how far the glow spreads
-    0.7     // threshold — brightness cutoff (lower = more objects bloom)
+    1.2,    // strength — cranked for NVIDIA
+    0.5,    // radius — wider light bleed
+    0.5     // threshold — more objects bloom
   );
 
   composer = new EffectComposer(renderer);

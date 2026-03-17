@@ -148,10 +148,10 @@ export function createNebula() {
   const geo = new THREE.SphereGeometry(130, 32, 32);
 
   nebulaMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(0x0a0520),
+    color: new THREE.Color(0x020208),  // near-black, not purple
     side: THREE.BackSide,
     transparent: true,
-    opacity: 0.08,
+    opacity: 0.03,  // barely visible — just the faintest depth hint
     blending: THREE.AdditiveBlending,
     depthWrite: false
   });
