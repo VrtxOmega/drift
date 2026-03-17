@@ -52,6 +52,19 @@ html, body {
   z-index: 0;
 }
 
+/* Vignette — darkens edges for cinematic depth (replaces nebula sphere) */
+.vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    transparent 40%,
+    rgba(0, 0, 0, 0.3) 70%,
+    rgba(0, 0, 0, 0.7) 100%
+  );
+}
+
 /* ══════════════════════════════════════════════════════
    LANDING SCREEN
    ══════════════════════════════════════════════════════ */

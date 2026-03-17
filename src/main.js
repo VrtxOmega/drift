@@ -5,7 +5,7 @@
 
 import { fetchUser, fetchRepos, fetchAllCommits, computeStats } from './github.js';
 import { initScene, startLoop, onUpdate, flyTo, resetCamera, getRaycaster, scene, camera } from './scene.js';
-import { createBackgroundStars, createMilkyWay, createNebula, updateAmbientBreathing } from './background.js';
+import { createBackgroundStars, createMilkyWay, updateAmbientBreathing } from './background.js';
 import { createGalaxies, createConstellations, updateConstellations, galaxyGroups, galaxyMeta, setHoveredGalaxy, getGalaxyRotationSpeed, createGravitationalCenter, updateGravitationalCenter } from './galaxy.js';
 import { renderShareCard, copyShareCard, downloadShareCard } from './share.js';
 import * as THREE from 'three';
@@ -35,7 +35,7 @@ let currentStats = null;
 // ── Init ──
 initScene(canvas);
 createBackgroundStars();
-createNebula();
+// nebula removed — bloom was amplifying it into purple wash
 startLoop();
 
 // ── Launch Flow ──
