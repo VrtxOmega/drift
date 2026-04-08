@@ -6,7 +6,7 @@
 // ══════════════════════════════════════════════════════
 
 import * as THREE from 'three';
-import { scene } from './scene.js';
+import { scene, onUpdate } from './scene.js';
 
 // Language → color mapping (vibrant, saturated)
 const LANG_COLORS = {
@@ -339,6 +339,19 @@ function createSingleGalaxy(repo, commits, position, maxCommits) {
     stars.instanceMatrix.needsUpdate = true;
     if (stars.instanceColor) stars.instanceColor.needsUpdate = true;
     
+    // ── ANIMATED BIRTH OUT ──
+    stars.count = 0;
+    let birthT = 0;
+    const TOTAL_TIME = 1.5; // 1.5 seconds birth duration
+    onUpdate((dt) => {
+      if (birthT < 1.0) {
+        birthT += dt / TOTAL_TIME;
+        if (birthT > 1.0) birthT = 1.0;
+        const ea = 1 - Math.pow(1 - birthT, 3); // Ease out cubic
+        stars.count = Math.floor(ea * starCount);
+      }
+    });
+
     group.add(stars);
   }
 
@@ -430,11 +443,11 @@ export function createConstellations(stats) {
 
     // Smooth curve
     const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.5);
-    const resolution = streak.length * 8;
-    const curvePoints = curve.getPoints(resolution);
+    const curvePoints = curve.getPoints(50);
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(curvePoints);
+    lineGeo.setDrawRange(0, 0); // Start hidden for birth animation
 
     // ── 1. BASE LINE: electric gold ──
-    const lineGeo = new THREE.BufferGeometry().setFromPoints(curvePoints);
     const lineMat = new THREE.LineBasicMaterial({
       color: new THREE.Color(0xffc850),
       transparent: true,
@@ -455,6 +468,7 @@ export function createConstellations(stats) {
       linewidth: 1
     });
     const glowLine = new THREE.Line(lineGeo.clone(), glowMat);
+    glowLine.geometry.setDrawRange(0, 0); // Start hidden for birth animation
     scene.add(glowLine);
 
     // ── 3. MEANINGFUL NODES: each dot = a commit day, sized by commits that day ──
@@ -482,6 +496,7 @@ export function createConstellations(stats) {
       });
       const node = new THREE.Mesh(nodeGeo, nodeMat);
       node.position.copy(points[ni]);
+      node.visible = false; // Hide initially for birth animation
       scene.add(node);
       nodeMats.push(nodeMat);
     }
@@ -521,6 +536,7 @@ export function createConstellations(stats) {
       const baseSize = 1.0 + intensity * 1.5;
       sprite.scale.set(baseSize, baseSize, 1);
       sprite.position.copy(points[0]);
+      sprite.visible = false; // Hide initially for birth animation
       scene.add(sprite);
       pulseMats.push(pMat);
       pulseSprites.push(sprite);
@@ -530,6 +546,8 @@ export function createConstellations(stats) {
     // Store synapse data for animation
     synapses.push({
       curve,
+      curveGeo: lineGeo,
+      glowGeo: glowLine.geometry,
       curveLength: curve.getLength(),
       lineMat,
       glowMat,
@@ -540,7 +558,8 @@ export function createConstellations(stats) {
       pulseCount,
       intensity,
       speed: 0.08 + intensity * 0.12, // faster for longer streaks
-      nodePositions: points
+      nodePositions: points,
+      birthT: 0 // For chronological drawing
     });
   }
 }
@@ -553,6 +572,30 @@ export function createConstellations(stats) {
  */
 export function updateConstellations(dt, elapsed) {
   for (const syn of synapses) {
+    // ── Execute Birth Sequence ──
+    if (syn.birthT < 1.0) {
+      syn.birthT += dt / 2.0; // 2 seconds trace
+      if (syn.birthT > 1.0) syn.birthT = 1.0;
+      
+      const ea = 1 - Math.pow(1 - syn.birthT, 3);
+      const ptsCount = Math.floor(ea * 51); // 50 segments = 51 points
+      syn.curveGeo.setDrawRange(0, ptsCount);
+      syn.glowGeo.setDrawRange(0, ptsCount);
+      
+      // Reveal nodes as the line reaches them
+      for (let ni = 0; ni < syn.nodeMats.length; ni++) {
+        const nodeProg = ni / (syn.nodeMats.length - 1 || 1);
+        syn.nodeMats[ni].visible = ea >= nodeProg;
+      }
+      
+      // Reveal pulses only when animation creates space
+      if (ea > 0.1) {
+        for (const sprite of syn.pulseSprites) {
+          sprite.visible = true;
+        }
+      }
+    }
+
     // ── Pulse base line opacity ──
     const basePulse = 0.5 + 0.5 * Math.sin(elapsed * 1.5 + syn.intensity * 10);
     syn.lineMat.opacity = (0.20 + syn.intensity * 0.25) * (0.6 + basePulse * 0.4);
