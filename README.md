@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="https://raw.githubusercontent.com/VrtxOmega/Gravity-Omega/master/omega_icon.png" width="100" alt="VERITAS" />
   <h1>DRIFT</h1>
   <p><strong>Real-Time 3D Visualization of Your GitHub Universe</strong></p>
   <p><em>Your code has a pulse.</em></p>
