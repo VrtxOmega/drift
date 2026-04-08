@@ -69,9 +69,9 @@ export function initScene(canvas) {
   const renderPass = new RenderPass(scene, camera);
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    1.2,    // strength — cranked for NVIDIA
-    0.5,    // radius — wider light bleed
-    0.5     // threshold — more objects bloom
+    0.6,    // strength — reduced to prevent blowing out geometry
+    0.3,    // radius — tighter light bleed
+    0.6     // threshold — keep glowing highlights only
   );
 
   composer = new EffectComposer(renderer);

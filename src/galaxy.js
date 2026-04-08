@@ -319,21 +319,26 @@ function createSingleGalaxy(repo, commits, position, maxCommits) {
       colors[j * 3 + 2] = aged.b;
     }
 
-    const starGeo = new THREE.BufferGeometry();
-    starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-    const starMat = new THREE.PointsMaterial({
-      vertexColors: true,
-      size: 0.7 * sparseFactor,  // sparse = BIGGER stars
-      sizeAttenuation: true,
+    const _dummy = new THREE.Object3D();
+    const starGeo = new THREE.OctahedronGeometry(0.3 * sparseFactor, 0); // Geometric diamonds instead of flat squares
+    const starMat = new THREE.MeshBasicMaterial({
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.85,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
+    const stars = new THREE.InstancedMesh(starGeo, starMat, starCount);
 
-    const stars = new THREE.Points(starGeo, starMat);
+    for (let j = 0; j < starCount; j++) {
+      _dummy.position.set(positions[j*3], positions[j*3+1], positions[j*3+2]);
+      _dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      _dummy.updateMatrix();
+      stars.setMatrixAt(j, _dummy.matrix);
+      stars.setColorAt(j, new THREE.Color(colors[j*3], colors[j*3+1], colors[j*3+2]));
+    }
+    stars.instanceMatrix.needsUpdate = true;
+    if (stars.instanceColor) stars.instanceColor.needsUpdate = true;
+    
     group.add(stars);
   }
 
@@ -458,8 +463,8 @@ export function createConstellations(stats) {
       const dayDate = streak[ni];
       const dayCommits = dailyCommits[dayDate] || 1;
       // Size scales with significance: 1 commit = small, 10+ = large
-      const nodeRadius = 0.25 + Math.min(dayCommits / 8, 0.8) + intensity * 0.15;
-      const nodeGeo = new THREE.SphereGeometry(nodeRadius, 10, 10);
+      const nodeRadius = 0.35 + Math.min(dayCommits / 8, 0.8) + intensity * 0.15;
+      const nodeGeo = new THREE.IcosahedronGeometry(nodeRadius, 0); // Geometric mesh hub instead of flat sphere
       // Color shifts: low commits = blue-white, high commits = hot gold
       const commitHeat = Math.min(1, dayCommits / 10);
       const nodeColor = new THREE.Color().lerpColors(
@@ -470,9 +475,10 @@ export function createConstellations(stats) {
       const nodeMat = new THREE.MeshBasicMaterial({
         color: nodeColor,
         transparent: true,
-        opacity: 0.6 + commitHeat * 0.3,
+        opacity: 0.7 + commitHeat * 0.3,
         blending: THREE.AdditiveBlending,
-        depthWrite: false
+        depthWrite: false,
+        wireframe: true // Creates the intricate connection feel
       });
       const node = new THREE.Mesh(nodeGeo, nodeMat);
       node.position.copy(points[ni]);
