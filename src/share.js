@@ -12,11 +12,16 @@ import { renderer } from './scene.js';
  * @param {object} stats
  */
 export function renderShareCard(shareCanvas, user, stats) {
+  const SCALE = 2; // High-DPI export
   const W = 1200;
   const H = 630;
-  shareCanvas.width = W;
-  shareCanvas.height = H;
+  
+  shareCanvas.width = W * SCALE;
+  shareCanvas.height = H * SCALE;
   const ctx = shareCanvas.getContext('2d');
+  
+  // Scale logical drawing context so all standard coordinates work normally
+  ctx.scale(SCALE, SCALE);
 
   // ── Background ──
   ctx.fillStyle = '#060610';
@@ -51,7 +56,7 @@ export function renderShareCard(shareCanvas, user, stats) {
 
   // ── Top-left: DRIFT branding ──
   ctx.fillStyle = '#c9b06b';
-  ctx.font = '500 24px Inter, sans-serif';
+  ctx.font = '500 24px Georgia, serif';
   ctx.fillText('Ω', 40, 52);
   ctx.fillStyle = '#8a8aa0';
   ctx.font = '600 14px Inter, sans-serif';
@@ -80,9 +85,12 @@ export function renderShareCard(shareCanvas, user, stats) {
 
   // ── Center: YOUR UNIVERSE ──
   ctx.fillStyle = '#c9b06b';
-  ctx.font = '300 12px Inter, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Ω  Y O U R   U N I V E R S E  Ω', W / 2, H * 0.45);
+  ctx.font = '300 12px Georgia, serif';
+  ctx.fillText('Ω', W / 2 - 90, H * 0.45);
+  ctx.fillText('Ω', W / 2 + 90, H * 0.45);
+  ctx.font = '300 12px Inter, sans-serif';
+  ctx.fillText('Y O U R   U N I V E R S E', W / 2, H * 0.45);
   ctx.textAlign = 'left';
 
   // ── Bottom stats bar ──
@@ -110,9 +118,11 @@ export function renderShareCard(shareCanvas, user, stats) {
 
   // ── Bottom tagline ──
   ctx.fillStyle = '#4a4a6a';
-  ctx.font = '400 10px Inter, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('🌀  DRIFT — your code has a pulse  ·  drift.veritas.dev', W / 2, H - 24);
+  ctx.font = '400 10px Georgia, serif';
+  ctx.fillText('Ω', W / 2 - 120, H - 24);
+  ctx.font = '400 10px Inter, sans-serif';
+  ctx.fillText('DRIFT — your code has a pulse  ·  drift.veritas.dev', W / 2 + 8, H - 24);
   ctx.textAlign = 'left';
 
   // ── Gold border lines ──
