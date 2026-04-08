@@ -52,7 +52,7 @@ export function renderShareCard(shareCanvas, user, stats) {
   // ── Top-left: DRIFT branding ──
   ctx.fillStyle = '#c9b06b';
   ctx.font = '500 24px Inter, sans-serif';
-  ctx.fillText('✦', 40, 52);
+  ctx.fillText('Ω', 40, 52);
   ctx.fillStyle = '#8a8aa0';
   ctx.font = '600 14px Inter, sans-serif';
   ctx.letterSpacing = '4px';
@@ -82,7 +82,7 @@ export function renderShareCard(shareCanvas, user, stats) {
   ctx.fillStyle = '#c9b06b';
   ctx.font = '300 12px Inter, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('✦  Y O U R   U N I V E R S E  ✦', W / 2, H * 0.45);
+  ctx.fillText('Ω  Y O U R   U N I V E R S E  Ω', W / 2, H * 0.45);
   ctx.textAlign = 'left';
 
   // ── Bottom stats bar ──

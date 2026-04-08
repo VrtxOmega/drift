@@ -187,12 +187,12 @@ document.getElementById('close-share').addEventListener('click', () => {
 
 document.getElementById('btn-copy-share').addEventListener('click', async () => {
   const ok = await copyShareCard($shareCanvas);
-  showToast(ok ? '✦ Copied to clipboard' : 'Copy failed — try download instead');
+  showToast(ok ? 'Ω Copied to clipboard' : 'Copy failed — try download instead');
 });
 
 document.getElementById('btn-download-share').addEventListener('click', () => {
   downloadShareCard($shareCanvas, currentUser?.login || 'user');
-  showToast('✦ Downloaded');
+  showToast('Ω Downloaded');
 });
 
 document.getElementById('close-galaxy').addEventListener('click', () => {
