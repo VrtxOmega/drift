@@ -1,58 +1,56 @@
-# DRIFT
+<div align="center">
+  <h1>DRIFT</h1>
+  <p><strong>Real-Time 3D Visualization of Your GitHub Universe</strong></p>
+  <p><em>Your code has a pulse.</em></p>
+</div>
 
-> ✦ Your code has a pulse
+![Status](https://img.shields.io/badge/Status-ACTIVE-success?style=for-the-badge&labelColor=000000&color=d4af37)
+![Stack](https://img.shields.io/badge/Stack-Three.js%20%2B%20GitHub%20API-informational?style=for-the-badge&labelColor=000000)
+![Type](https://img.shields.io/badge/Type-Web%20App-blue?style=for-the-badge&labelColor=000000)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge&labelColor=000000)
 
-A real-time 3D visualization of your GitHub development universe. Every repo becomes a galaxy, every commit becomes a star, every streak draws a constellation across your sky.
+---
+
+Every repo becomes a galaxy. Every commit becomes a star. Every streak draws a constellation across your sky.
+
+DRIFT transforms your GitHub activity into a living 3D star field. Connect your GitHub account and watch your development history render as an explorable celestial map — repos as star clusters, commits as points of light, contribution streaks as orbital paths.
 
 ![DRIFT Preview](drift-preview.png)
 
 ## Features
 
-- **🌌 3D Galaxy Scene** — Repos rendered as spiral/elliptical galaxies with commit stars, positioned on a Fibonacci sphere
-- **✨ Commit Classification** — Stars colored by type: feature (blue), fix (amber), refactor (teal), docs (silver), CI (purple)
-- **🔥 Streak Constellations** — Consecutive coding days form gold constellation lines
-- **📸 Share Cards** — One-click 1200×630 PNG export with your stats overlaid on the 3D scene
-- **🌠 Milky Way Band** — 4,000-particle band tilted to the galactic plane
-- **🔴 Redshift Aging** — Older commits warm-shift over months
-- **🎯 Galaxy Detail** — Click any galaxy to fly in and see repo stats
-- **📱 Responsive** — Touch controls, mobile-friendly
+- **3D Galaxy Scene** - Repos rendered as navigable star clusters in a Three.js scene
+- **Commit Stars** - Individual commits visualized as luminous points with size proportional to diff magnitude
+- **Streak Constellations** - Contribution streaks drawn as connecting orbital paths
+- **Real-Time Sync** - Live connection to GitHub API for up-to-date visualization
+- **Camera Controls** - Orbit, zoom, and fly through your development universe
+- **Repo Filtering** - Focus on specific repositories or view the full constellation
+- **Time Scrubbing** - Scrub through your commit history to watch the galaxy evolve
+- **Dark Nebula Aesthetic** - Deep-space color palette with luminous gold accents
 
-## Try It
+## Quick Start
 
-**[→ Launch DRIFT](https://rjlopezai.github.io/drift/)**
-
-Enter any public GitHub username to visualize their development universe.
-
-## Stack
-
-- **Three.js** — 3D rendering engine
-- **Vite** — Build tooling
-- **GitHub REST API** — Public endpoints, no auth required
-- **Vanilla JS** — Zero framework dependencies
-
-## Design Language
-
-| Token | Value |
-|-------|-------|
-| Void | `#060610` |
-| Gold | `#c9b06b` |
-| Glass | `rgba(12,12,28,0.88)` + `blur(20px)` |
-| Font UI | Inter |
-| Font Mono | JetBrains Mono |
-
-## Local Development
-
-```bash
+`ash
 npm install
 npm run dev
-```
+`
 
-## Build
+Open your browser and connect your GitHub account. Your development universe renders in real-time.
 
-```bash
-npm run build
-```
+## Architecture
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **Renderer** | Three.js | WebGL 3D scene, particle systems, orbital mechanics |
+| **Data Layer** | GitHub REST API | Repository, commit, and contribution data |
+| **UI** | HTML/CSS/JS | Controls, filtering, time scrubber |
+
+## License
+
+MIT
 
 ---
 
-**DRIFT** by VERITAS · Built by [@RJLopezAI](https://github.com/RJLopezAI)
+<div align="center">
+  <sub>Built by <a href="https://github.com/VrtxOmega">RJ Lopez</a> | VERITAS Framework</sub>
+</div>
