@@ -172,8 +172,15 @@ document.getElementById('btn-home').addEventListener('click', () => {
 
 document.getElementById('btn-share').addEventListener('click', () => {
   if (!currentUser || !currentStats) return;
-  renderShareCard($shareCanvas, currentUser, currentStats);
-  $shareModal.classList.remove('hidden');
+  // Frame the perfect cinematic shot before capturing
+  resetCamera();
+  showToast('Framing universe...');
+  
+  // Wait for the 1.5s camera tween to finish
+  setTimeout(() => {
+    renderShareCard($shareCanvas, currentUser, currentStats);
+    $shareModal.classList.remove('hidden');
+  }, 1600);
 });
 
 document.getElementById('btn-back').addEventListener('click', () => {

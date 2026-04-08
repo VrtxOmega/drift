@@ -57,7 +57,8 @@ export function initScene(canvas) {
     antialias: true,
     alpha: false,
     powerPreference: 'high-performance',
-    logarithmicDepthBuffer: true
+    logarithmicDepthBuffer: true,
+    preserveDrawingBuffer: true
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(window.devicePixelRatio);  // Full native (NVIDIA can handle it)
