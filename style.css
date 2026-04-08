@@ -173,7 +173,12 @@ html, body {
   cursor: pointer;
   transition: all 0.3s var(--ease);
 }
-.btn-ghost:hover { border-color: var(--border-gold); color: var(--gold); }
+.btn-ghost:hover {
+  border-color: var(--border-gold);
+  color: var(--gold);
+  transform: scale(1.05);
+  box-shadow: 0 0 15px var(--gold-glow);
+}
 
 .btn-sm { padding: 6px 12px; font-size: 11px; }
 
@@ -274,6 +279,10 @@ html, body {
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, #ffffff 0%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 .stat-label {
   font-size: 9px;
@@ -425,9 +434,11 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
-  background: var(--void-glass);
-  backdrop-filter: var(--blur);
-  border: 1px solid var(--border-gold);
+  background: rgba(10, 10, 15, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 215, 0, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 40px rgba(201, 176, 107, 0.05);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
   max-width: 480px;

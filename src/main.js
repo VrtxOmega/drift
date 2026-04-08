@@ -68,11 +68,11 @@ async function launch() {
       $hud.classList.remove('hidden');
       $hudUser.textContent = `@${user.login}`;
       $hudStats.innerHTML = [
-        stat('0', 'COMMITS'),
-        stat('0', 'REPOS'),
-        stat('—', 'MAX STREAK'),
+        stat('0', 'COMMITS', 'stat-commits'),
+        stat('0', 'REPOS', 'stat-repos'),
+        stat('—', 'MAX STREAK', 'stat-streak'),
         stat('—', 'TOP LANG'),
-        stat('0', 'ACTIVE DAYS')
+        stat('0', 'ACTIVE DAYS', 'stat-days')
       ].join('');
       return;
     }
@@ -110,12 +110,18 @@ async function launch() {
     // Populate HUD
     $hudUser.textContent = `@${user.login}`;
     $hudStats.innerHTML = [
-      stat(stats.totalCommits.toLocaleString(), 'COMMITS'),
-      stat(stats.totalRepos.toString(), 'REPOS'),
-      stat(`${stats.maxStreak}d`, 'MAX STREAK'),
+      stat('0', 'COMMITS', 'stat-commits'),
+      stat('0', 'REPOS', 'stat-repos'),
+      stat('0d', 'MAX STREAK', 'stat-streak'),
       stat(`${stats.topLanguage}`, 'TOP LANG'),
-      stat(stats.activeDays.toString(), 'ACTIVE DAYS')
+      stat('0', 'ACTIVE DAYS', 'stat-days')
     ].join('');
+
+    // Trigger animations
+    animateCountUp('stat-commits', stats.totalCommits, 2000);
+    animateCountUp('stat-repos', stats.totalRepos, 1500);
+    animateCountUp('stat-streak', stats.maxStreak, 1800, 'd');
+    animateCountUp('stat-days', stats.activeDays, 1600);
 
     // Register hover system
     registerHover();
@@ -132,8 +138,25 @@ async function launch() {
   }
 }
 
-function stat(value, label) {
-  return `<div class="stat-item"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+function stat(value, label, id = '') {
+  const idAttr = id ? ` id="${id}"` : '';
+  return `<div class="stat-item"><div class="stat-value"${idAttr}>${value}</div><div class="stat-label">${label}</div></div>`;
+}
+
+function animateCountUp(elementId, endValue, duration = 1500, suffix = '') {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const startTime = performance.now();
+  function update(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 4);
+    const current = Math.floor(ease * endValue);
+    el.textContent = current.toLocaleString() + suffix;
+    if (progress < 1) requestAnimationFrame(update);
+    else el.textContent = endValue.toLocaleString() + suffix;
+  }
+  requestAnimationFrame(update);
 }
 
 function setProgress(pct, detail) {
