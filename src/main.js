@@ -32,6 +32,10 @@ const canvas      = document.getElementById('drift-canvas');
 let currentUser = null;
 let currentStats = null;
 
+// FIX: allocate one Raycaster and reuse it — avoids creating a new object on
+// every mousemove event (which fires at 60+ fps while the mouse is moving).
+const _sharedRaycaster = new THREE.Raycaster();
+
 // ── Init ──
 initScene(canvas);
 createBackgroundStars();
@@ -80,7 +84,11 @@ async function launch() {
 
     // 3. Fetch commits
     const commitMap = await fetchAllCommits(username, repos, msg => {
-      const pct = 35 + Math.round(msg.match(/(\d+)%/)?.[1] * 0.5 || 0);
+      // FIX: parse the percentage as a number before arithmetic.
+      // msg.match(...)?.[1] returns a string; multiplying a string by 0.5 works
+      // via JS coercion but is fragile and lint-unsafe. Use parseInt explicitly.
+      const rawPct = parseInt(msg.match(/(\d+)%/)?.[1] ?? '0', 10);
+      const pct = 35 + Math.round(rawPct * 0.5);
       setProgress(Math.min(85, pct), msg);
     });
     setProgress(88, 'Computing statistics...');
@@ -175,7 +183,7 @@ document.getElementById('btn-share').addEventListener('click', () => {
   // Frame the perfect cinematic shot before capturing
   resetCamera();
   showToast('Framing universe...');
-  
+
   // Wait for the 1.5s camera tween to finish
   setTimeout(() => {
     renderShareCard($shareCanvas, currentUser, currentStats);
@@ -212,7 +220,9 @@ function registerHover() {
   let hovered = null;
 
   canvas.addEventListener('mousemove', (e) => {
-    const rc = getRaycaster(e.clientX, e.clientY);
+    // FIX: reuse the shared Raycaster instead of allocating a new one every frame.
+    // getRaycaster now accepts an optional Raycaster to populate in-place.
+    const rc = getRaycaster(e.clientX, e.clientY, _sharedRaycaster);
     let found = null;
 
     for (const group of galaxyGroups) {
@@ -251,7 +261,7 @@ function registerHover() {
   });
 
   canvas.addEventListener('click', (e) => {
-    const rc = getRaycaster(e.clientX, e.clientY);
+    const rc = getRaycaster(e.clientX, e.clientY, _sharedRaycaster);
 
     for (const group of galaxyGroups) {
       const hits = rc.intersectObjects(group.children, true);

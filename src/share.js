@@ -15,11 +15,11 @@ export function renderShareCard(shareCanvas, user, stats) {
   const SCALE = 2; // High-DPI export
   const W = 1200;
   const H = 630;
-  
+
   shareCanvas.width = W * SCALE;
   shareCanvas.height = H * SCALE;
   const ctx = shareCanvas.getContext('2d');
-  
+
   // Scale logical drawing context so all standard coordinates work normally
   ctx.scale(SCALE, SCALE);
 
@@ -37,7 +37,6 @@ export function renderShareCard(shareCanvas, user, stats) {
   // ── 3D Scene Snapshot ──
   try {
     const sceneImg = renderer.domElement;
-    // Draw the 3D canvas as the background
     ctx.globalAlpha = 0.6;
     ctx.drawImage(sceneImg, 0, 0, W, H);
     ctx.globalAlpha = 1.0;
@@ -63,25 +62,49 @@ export function renderShareCard(shareCanvas, user, stats) {
   ctx.letterSpacing = '4px';
   ctx.fillText('DRIFT', 68, 50);
 
-  // ── Top-right: avatar + username ──
-  if (user.avatar_url) {
-    const avatarSize = 40;
-    const ax = W - 40 - avatarSize;
-    const ay = 30;
-    // Draw rounded avatar placeholder
-    ctx.beginPath();
-    ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(201, 176, 107, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
+  // ── Top-right: username ──
   ctx.fillStyle = '#e8e6e3';
   ctx.font = '500 14px Inter, sans-serif';
   ctx.textAlign = 'right';
   ctx.fillText(`@${user.login}`, W - 90, 55);
   ctx.textAlign = 'left';
+
+  // ── Top-right: actual avatar image (async — draw placeholder immediately, replace when loaded) ──
+  const avatarSize = 40;
+  const ax = W - 40 - avatarSize;
+  const ay = 30;
+
+  // Draw placeholder circle first (visible immediately)
+  ctx.beginPath();
+  ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(201, 176, 107, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // FIX: actually load and draw the avatar image.
+  // The original code only drew the placeholder circle and never fetched the image.
+  if (user.avatar_url) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      // Clip to circle and draw over the placeholder
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(img, ax, ay, avatarSize, avatarSize);
+      ctx.restore();
+      // Re-draw the border ring on top of the image
+      ctx.beginPath();
+      ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(201, 176, 107, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    };
+    img.src = user.avatar_url;
+  }
 
   // ── Center: YOUR UNIVERSE ──
   ctx.fillStyle = '#c9b06b';

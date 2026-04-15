@@ -183,7 +183,7 @@ export function flyTo(target) {
   tweenStart = { theta, phi, radius };
   tweenEnd = {
     theta: Math.atan2(dir.z, dir.x),
-    phi: Math.acos(dir.y / 1),
+    phi: Math.acos(dir.y),  // FIX: removed the pointless `/ 1` that was here
     radius: Math.max(RADIUS_MIN + 5, radius * 0.7)
   };
   tweenT = 0;
@@ -250,12 +250,16 @@ export function startLoop() {
 
 /**
  * Get raycaster from screen coordinates.
+ * Accepts an optional existing Raycaster to populate in-place (avoids allocation).
  * @param {number} x - Screen X
  * @param {number} y - Screen Y
+ * @param {THREE.Raycaster} [rc] - Optional raycaster to reuse
  * @returns {THREE.Raycaster}
  */
-export function getRaycaster(x, y) {
-  const rc = new THREE.Raycaster();
+export function getRaycaster(x, y, rc) {
+  // FIX: accept a pre-allocated Raycaster so callers in hot paths (mousemove)
+  // can avoid creating a new object on every event.
+  if (!rc) rc = new THREE.Raycaster();
   const mouse = new THREE.Vector2(
     (x / window.innerWidth) * 2 - 1,
     -(y / window.innerHeight) * 2 + 1

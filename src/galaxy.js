@@ -338,18 +338,17 @@ function createSingleGalaxy(repo, commits, position, maxCommits) {
     }
     stars.instanceMatrix.needsUpdate = true;
     if (stars.instanceColor) stars.instanceColor.needsUpdate = true;
-    
+
     // ── ANIMATED BIRTH OUT ──
     stars.count = 0;
     let birthT = 0;
     const TOTAL_TIME = 1.5; // 1.5 seconds birth duration
     onUpdate((dt) => {
-      if (birthT < 1.0) {
-        birthT += dt / TOTAL_TIME;
-        if (birthT > 1.0) birthT = 1.0;
-        const ea = 1 - Math.pow(1 - birthT, 3); // Ease out cubic
-        stars.count = Math.floor(ea * starCount);
-      }
+      if (birthT >= 1.0) return; // done — skip cheaply
+      birthT += dt / TOTAL_TIME;
+      if (birthT > 1.0) birthT = 1.0;
+      const ea = 1 - Math.pow(1 - birthT, 3); // Ease out cubic
+      stars.count = Math.floor(ea * starCount);
     });
 
     group.add(stars);
@@ -472,7 +471,9 @@ export function createConstellations(stats) {
     scene.add(glowLine);
 
     // ── 3. MEANINGFUL NODES: each dot = a commit day, sized by commits that day ──
-    const nodeMats = [];
+    // FIX: store both the mesh AND the material so visibility can be set on the mesh.
+    const nodeMats = [];   // materials — for opacity animation
+    const nodeMeshes = []; // meshes   — for visibility toggling (was broken before)
     for (let ni = 0; ni < points.length; ni++) {
       const dayDate = streak[ni];
       const dayCommits = dailyCommits[dayDate] || 1;
@@ -499,6 +500,7 @@ export function createConstellations(stats) {
       node.visible = false; // Hide initially for birth animation
       scene.add(node);
       nodeMats.push(nodeMat);
+      nodeMeshes.push(node); // FIX: track the mesh, not just the material
     }
 
     // ── 4. ENERGY PULSES: particles that travel along the curve ──
@@ -552,6 +554,7 @@ export function createConstellations(stats) {
       lineMat,
       glowMat,
       nodeMats,
+      nodeMeshes, // FIX: include mesh references for visibility control
       pulseSprites,
       pulseMats,
       pulsePhases,
@@ -576,18 +579,19 @@ export function updateConstellations(dt, elapsed) {
     if (syn.birthT < 1.0) {
       syn.birthT += dt / 2.0; // 2 seconds trace
       if (syn.birthT > 1.0) syn.birthT = 1.0;
-      
+
       const ea = 1 - Math.pow(1 - syn.birthT, 3);
       const ptsCount = Math.floor(ea * 51); // 50 segments = 51 points
       syn.curveGeo.setDrawRange(0, ptsCount);
       syn.glowGeo.setDrawRange(0, ptsCount);
-      
-      // Reveal nodes as the line reaches them
-      for (let ni = 0; ni < syn.nodeMats.length; ni++) {
-        const nodeProg = ni / (syn.nodeMats.length - 1 || 1);
-        syn.nodeMats[ni].visible = ea >= nodeProg;
+
+      // FIX: reveal nodes by setting visible on the MESH, not the material.
+      // Previously this wrote to nodeMat.visible which does nothing in Three.js.
+      for (let ni = 0; ni < syn.nodeMeshes.length; ni++) {
+        const nodeProg = ni / (syn.nodeMeshes.length - 1 || 1);
+        syn.nodeMeshes[ni].visible = ea >= nodeProg;
       }
-      
+
       // Reveal pulses only when animation creates space
       if (ea > 0.1) {
         for (const sprite of syn.pulseSprites) {

@@ -18,7 +18,7 @@ async function ghFetch(url) {
   const res = await fetch(url, {
     headers: { 'Accept': 'application/vnd.github+json' }
   });
-  if (res.status === 403) {
+  if (res.status === 403 || res.status === 429) {
     const reset = res.headers.get('X-RateLimit-Reset');
     const wait = reset ? Math.ceil((parseInt(reset) * 1000 - Date.now()) / 1000) : 60;
     throw new Error(`RATE_LIMITED: retry in ${wait}s`);
@@ -133,8 +133,6 @@ export function computeStats(repos, commitMap) {
   let totalCommits = 0;
   const languageCounts = {};
   const dailyCommits = {};
-  let streak = 0;
-  let maxStreak = 0;
 
   for (const [, commits] of commitMap) {
     totalCommits += commits.length;
@@ -150,26 +148,45 @@ export function computeStats(repos, commitMap) {
     }
   }
 
-  // Calculate streak
-  const today = new Date();
-  const sorted = Object.keys(dailyCommits).sort().reverse();
-  for (const d of sorted) {
-    const diff = Math.floor((today - new Date(d)) / 86400000);
-    if (diff <= streak + 1) {
-      streak++;
-    } else break;
+  // ── Current streak ──
+  // Walk back from today (or yesterday if no commit today yet).
+  // Each step must be exactly the previous calendar day — no skips allowed.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const sortedDesc = Object.keys(dailyCommits).sort().reverse();
+
+  let streak = 0;
+  if (sortedDesc.length > 0) {
+    // Streak is alive if the most recent commit was today or yesterday
+    const anchor = sortedDesc[0] === todayStr ? todayStr
+                 : sortedDesc[0] === yesterdayStr ? yesterdayStr
+                 : null;
+
+    if (anchor) {
+      let cursor = new Date(anchor);
+      for (const d of sortedDesc) {
+        if (d === cursor.toISOString().slice(0, 10)) {
+          streak++;
+          cursor.setDate(cursor.getDate() - 1); // step back one day
+        } else {
+          break; // gap in streak — stop
+        }
+      }
+    }
   }
 
-  // Max streak
+  // ── Max streak (longest consecutive run in history) ──
+  let maxStreak = 0;
   let cur = 0;
   const allDates = Object.keys(dailyCommits).sort();
   for (let i = 0; i < allDates.length; i++) {
-    if (i === 0) { cur = 1; }
-    else {
+    if (i === 0) {
+      cur = 1;
+    } else {
       const prev = new Date(allDates[i - 1]);
       const curr = new Date(allDates[i]);
       const gap = Math.floor((curr - prev) / 86400000);
-      cur = gap <= 1 ? cur + 1 : 1;
+      cur = gap === 1 ? cur + 1 : 1; // strictly consecutive days only
     }
     maxStreak = Math.max(maxStreak, cur);
   }
