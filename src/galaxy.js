@@ -116,6 +116,13 @@ export function createGalaxies(repos, commitMap, stats) {
     const group = createSingleGalaxy(repo, commits, pos, maxCommits);
     galaxyGroups.push(group);
 
+    // Build commit type breakdown for the galaxy panel language bar
+    const breakdown = {};
+    for (const commit of commits) {
+      const type = classifyCommit(commit.commit?.message || '');
+      breakdown[type] = (breakdown[type] || 0) + 1;
+    }
+
     galaxyMeta.set(repo.name, {
       name: repo.name,
       description: repo.description || 'No description',
@@ -125,7 +132,8 @@ export function createGalaxies(repos, commitMap, stats) {
       commits: commits.length,
       lastPush: repo.pushed_at,
       url: repo.html_url,
-      position: pos
+      position: pos,
+      commitBreakdown: breakdown
     });
   }
 }

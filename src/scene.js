@@ -140,6 +140,13 @@ function onWheel(e) {
 // ── Touch Controls ──
 
 let lastTouch = { x: 0, y: 0 };
+let lastPinchDist = 0;  // distance between two fingers
+
+function getTouchDist(e) {
+  const dx = e.touches[0].clientX - e.touches[1].clientX;
+  const dy = e.touches[0].clientY - e.touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
 
 function onTouchStart(e) {
   if (e.touches.length === 1) {
@@ -147,10 +154,28 @@ function onTouchStart(e) {
     autoRotate = false;
     lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     e.preventDefault();
+  } else if (e.touches.length === 2) {
+    // Begin pinch — stop pan drag
+    isDragging = false;
+    lastPinchDist = getTouchDist(e);
+    e.preventDefault();
   }
 }
 
 function onTouchMove(e) {
+  if (e.touches.length === 2) {
+    // Pinch-zoom: scale radius by inverse of finger distance change
+    const dist = getTouchDist(e);
+    if (lastPinchDist > 0) {
+      const delta = lastPinchDist - dist;  // positive = fingers coming together = zoom out (increase radius)
+      radius += delta * 0.4;
+      radius = Math.max(RADIUS_MIN, Math.min(RADIUS_MAX, radius));
+      updateCameraPosition();
+    }
+    lastPinchDist = dist;
+    e.preventDefault();
+    return;
+  }
   if (!isDragging || e.touches.length !== 1) return;
   const dx = e.touches[0].clientX - lastTouch.x;
   const dy = e.touches[0].clientY - lastTouch.y;
@@ -162,8 +187,9 @@ function onTouchMove(e) {
   e.preventDefault();
 }
 
-function onTouchEnd() {
-  isDragging = false;
+function onTouchEnd(e) {
+  if (e.touches.length < 2) lastPinchDist = 0;
+  if (e.touches.length === 0) isDragging = false;
 }
 
 /**

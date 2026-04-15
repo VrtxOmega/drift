@@ -42,9 +42,57 @@ createBackgroundStars();
 // nebula removed — bloom was amplifying it into purple wash
 startLoop();
 
+// ── URL Deep-Link ──
+// If the page loads with ?u=someuser, skip the landing screen and auto-launch.
+(function checkUrlDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const urlUser = params.get('u');
+  if (urlUser) {
+    $input.value = urlUser.trim();
+    // Defer one tick so the scene is initialized
+    setTimeout(launch, 50);
+  }
+})();
+
 // ── Launch Flow ──
 $launchBtn.addEventListener('click', launch);
 $input.addEventListener('keydown', e => { if (e.key === 'Enter') launch(); });
+
+// ── Keyboard Shortcuts ──
+document.addEventListener('keydown', (e) => {
+  // Don't fire when typing in the input field
+  if (document.activeElement === $input) return;
+
+  switch (e.key) {
+    case ' ':  // Space — reset camera home
+    case 'h':
+    case 'H':
+      if (!$hud.classList.contains('hidden')) {
+        e.preventDefault();
+        resetCamera();
+        $galaxyPanel.classList.add('hidden');
+      }
+      break;
+    case 'Escape':  // Dismiss any open overlay
+      $galaxyPanel.classList.add('hidden');
+      $shareModal.classList.add('hidden');
+      break;
+    case 's':
+    case 'S':  // Share card
+      if (!$hud.classList.contains('hidden') && currentUser && currentStats) {
+        document.getElementById('btn-share').click();
+      }
+      break;
+    case 'f':
+    case 'F':  // Fullscreen toggle
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+      break;
+  }
+});
 
 async function launch() {
   const username = $input.value.trim();
@@ -279,9 +327,57 @@ function registerHover() {
 }
 
 function showGalaxyDetail(meta) {
+  // ── Language bar ──
+  // Galaxy panel now shows colour-coded commit-type proportions sourced from
+  // the stats breakdown stored in meta.commitBreakdown (if present).
+  // Falls back to a single solid-colour bar using the galaxy's language colour.
+  let langBarHTML = '';
+  if (meta.commitBreakdown && Object.keys(meta.commitBreakdown).length > 0) {
+    const COMMIT_BAR_COLORS = {
+      feature: '#4a9eff',
+      fix:     '#ffaa33',
+      refactor:'#4acfcf',
+      docs:    '#bbbbdd',
+      test:    '#5ce87a',
+      ci:      '#a06ef5',
+      style:   '#ff6ea8',
+      merge:   '#c9b06b',
+      other:   '#99aacc'
+    };
+    const total = Object.values(meta.commitBreakdown).reduce((a, b) => a + b, 0);
+    const segments = Object.entries(meta.commitBreakdown)
+      .filter(([, v]) => v > 0)
+      .sort(([, a], [, b]) => b - a)
+      .map(([type, count]) => {
+        const pct = ((count / total) * 100).toFixed(1);
+        const color = COMMIT_BAR_COLORS[type] || '#99aacc';
+        return `<div class="lang-bar-seg" style="width:${pct}%;background:${color};" title="${type}: ${count} (${pct}%)"></div>`;
+      }).join('');
+    const labels = Object.entries(meta.commitBreakdown)
+      .filter(([, v]) => v > 0)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 4)
+      .map(([type, count]) => {
+        const color = COMMIT_BAR_COLORS[type] || '#99aacc';
+        return `<span class="lang-dot" style="background:${color};"></span><span class="lang-label-text">${type} ${count}</span>`;
+      }).join('');
+    langBarHTML = `
+      <div class="lang-bar-wrap">
+        <div class="lang-bar">${segments}</div>
+        <div class="lang-legend">${labels}</div>
+      </div>`;
+  } else if (meta.language && meta.language !== 'Unknown') {
+    langBarHTML = `
+      <div class="lang-bar-wrap">
+        <div class="lang-bar"><div class="lang-bar-seg" style="width:100%;background:var(--gold);"></div></div>
+        <div class="lang-legend"><span class="lang-dot" style="background:var(--gold);"></span><span class="lang-label-text">${meta.language}</span></div>
+      </div>`;
+  }
+
   $galaxyDetail.innerHTML = `
     <div class="galaxy-name">${meta.name}</div>
     <div class="galaxy-desc">${meta.description}</div>
+    ${langBarHTML}
     <div class="galaxy-meta">
       <div class="galaxy-meta-item"><strong>${meta.commits}</strong> commits</div>
       <div class="galaxy-meta-item"><strong>${meta.language}</strong></div>
@@ -289,6 +385,7 @@ function showGalaxyDetail(meta) {
       <div class="galaxy-meta-item">🔀 <strong>${meta.forks}</strong></div>
       <div class="galaxy-meta-item">Last push <strong>${formatRelative(meta.lastPush)}</strong></div>
     </div>
+    <a class="galaxy-link" href="https://github.com/${currentUser?.login}/${meta.name}" target="_blank" rel="noopener">↗ View on GitHub</a>
   `;
   $galaxyPanel.classList.remove('hidden');
 }

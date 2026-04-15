@@ -599,3 +599,151 @@ html, body {
   .stat-value { font-size: 16px; }
   .hud-legend { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════
+   LANGUAGE / COMMIT-TYPE BAR  (galaxy panel)
+   ══════════════════════════════════════════════════════ */
+
+.lang-bar-wrap {
+  margin: 10px 0 14px;
+}
+
+.lang-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.06);
+  gap: 1px;
+}
+
+.lang-bar-seg {
+  height: 100%;
+  transition: opacity 0.2s;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.lang-bar-seg:hover { opacity: 0.7; }
+
+.lang-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 6px;
+}
+
+.lang-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 3px;
+  flex-shrink: 0;
+}
+
+.lang-label-text {
+  font-size: 10px;
+  color: rgba(255,255,255,0.55);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.03em;
+  text-transform: capitalize;
+}
+
+/* ── GitHub link in galaxy panel ── */
+
+.galaxy-link {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 11px;
+  color: var(--gold);
+  text-decoration: none;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.galaxy-link:hover { opacity: 1; text-decoration: underline; }
+
+/* ══════════════════════════════════════════════════════
+   MOBILE RESPONSIVE HUD  (≤ 640px wide)
+   ══════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+
+  /* Brand + user — shrink to fit */
+  .hud-brand {
+    font-size: 11px;
+    gap: 6px;
+  }
+
+  /* Stats bar — horizontal scroll on mobile */
+  .hud-stats {
+    position: fixed;
+    top: auto;
+    right: auto;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    max-width: calc(100vw - 24px);
+    padding: 8px 10px;
+    white-space: nowrap;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hud-stats::-webkit-scrollbar { display: none; }
+
+  .stat-item { flex: 0 0 auto; text-align: center; }
+  .stat-value { font-size: 16px; }
+  .stat-label { font-size: 8px; }
+
+  /* Controls — tighter at bottom */
+  .hud-controls { bottom: 20px; gap: 6px; }
+  .btn-sm { padding: 6px 10px; font-size: 10px; }
+
+  /* Galaxy side panel — full-width bottom sheet on mobile */
+  .galaxy-panel {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    max-height: 55vh;
+    border-radius: 16px 16px 0 0;
+    overflow-y: auto;
+  }
+
+  /* Tooltip — pin higher so it doesn't overlap controls */
+  #tooltip {
+    bottom: 140px;
+    top: auto !important;
+    left: 50% !important;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+}
+
+/* Slightly relax landing input layout on very small screens */
+@media (max-width: 480px) {
+  .input-group {
+    flex-direction: column;
+    gap: 10px;
+    width: 90vw;
+  }
+
+  .input-group input {
+    width: 100%;
+    text-align: center;
+  }
+
+  .brand {
+    font-size: clamp(2.4rem, 14vw, 5rem);
+  }
+}
+
