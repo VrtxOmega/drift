@@ -16,7 +16,15 @@ Every repo becomes a galaxy. Every commit becomes a star. Every streak draws a c
 
 DRIFT transforms your GitHub activity into a living 3D star field. Connect your GitHub account and watch your development history render as an explorable celestial map — repos as star clusters, commits as points of light, contribution streaks as orbital paths.
 
-![DRIFT Preview](drift-preview.png)
+<div align="center">
+  <img src="assets/drift_launcher.png" width="800" alt="DRIFT Launcher Interface">
+  <br>
+  <br>
+  <img src="assets/drift_galaxy.png" width="800" alt="DRIFT Galaxy Visualization">
+  <br>
+  <br>
+  <i><span style="color: #C9A84C;"><strong>DRIFT.</strong></span> Visualizing the GitHub development universe in real-time.</i>
+</div>
 
 ## Features
 
