@@ -37,7 +37,7 @@ const LANG_COLORS = {
 };
 
 // Commit message → type classification
-function classifyCommit(message) {
+export function classifyCommit(message) {
   const m = (message || '').toLowerCase();
   if (/^(feat|add|new|implement|create)/i.test(m)) return 'feature';
   if (/^(fix|bug|patch|resolve|hotfix)/i.test(m)) return 'fix';

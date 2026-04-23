@@ -70,9 +70,9 @@ export function initScene(canvas) {
   const renderPass = new RenderPass(scene, camera);
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.6,    // strength — reduced to prevent blowing out geometry
-    0.3,    // radius — tighter light bleed
-    0.6     // threshold — keep glowing highlights only
+    1.4,    // strength — dramatic space-glow
+    0.5,    // radius — wider light bleed for atmospheric bloom
+    0.3     // threshold — lower so more stars glow
   );
 
   composer = new EffectComposer(renderer);
@@ -215,6 +215,41 @@ export function flyTo(target) {
   tweenT = 0;
   tweenActive = true;
   autoRotate = false;
+}
+
+/** Is the camera currently in galaxy-dive mode? */
+let _isDive = false;
+export function isGalaxyDive() { return _isDive; }
+
+/**
+ * Fly camera INTO a galaxy for commit-inspection mode.
+ * @param {THREE.Vector3} targetGalaxyPos
+ */
+export function enterGalaxy(targetGalaxyPos) {
+  const dir = targetGalaxyPos.clone().normalize();
+  tweenStart = { theta, phi, radius };
+  tweenEnd = {
+    theta: Math.atan2(dir.z, dir.x),
+    phi: Math.acos(dir.y),
+    // Place camera ~10 units from galaxy center, looking straight at it
+    radius: 12
+  };
+  tweenT = 0;
+  tweenActive = true;
+  autoRotate = false;
+  _isDive = true;
+}
+
+/**
+ * Fly camera back out to the universal home view.
+ */
+export function exitGalaxy() {
+  tweenStart = { theta, phi, radius };
+  tweenEnd = { theta: 0, phi: Math.PI / 2, radius: 85 };
+  tweenT = 0;
+  tweenActive = true;
+  _isDive = false;
+  autoRotate = true;
 }
 
 /**

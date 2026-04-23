@@ -4,9 +4,9 @@
 // ══════════════════════════════════════════════════════
 
 import { fetchUser, fetchRepos, fetchAllCommits, computeStats } from './github.js';
-import { initScene, startLoop, onUpdate, flyTo, resetCamera, getRaycaster, scene, camera } from './scene.js';
+import { initScene, startLoop, onUpdate, flyTo, resetCamera, getRaycaster, scene, camera, enterGalaxy, exitGalaxy, isGalaxyDive } from './scene.js';
 import { createBackgroundStars, createMilkyWay, updateAmbientBreathing } from './background.js';
-import { createGalaxies, createConstellations, updateConstellations, galaxyGroups, galaxyMeta, setHoveredGalaxy, getGalaxyRotationSpeed, createGravitationalCenter, updateGravitationalCenter } from './galaxy.js';
+import { createGalaxies, createConstellations, updateConstellations, galaxyGroups, galaxyMeta, setHoveredGalaxy, getGalaxyRotationSpeed, createGravitationalCenter, updateGravitationalCenter, classifyCommit } from './galaxy.js';
 import { renderShareCard, copyShareCard, downloadShareCard } from './share.js';
 import * as THREE from 'three';
 // HERMES_CACHE_BUST_001
@@ -33,6 +33,9 @@ const canvas      = document.getElementById('drift-canvas');
 // ── State ──
 let currentUser = null;
 let currentStats = null;
+let activeCommitMap = null;  // Store for dive-mode commit rendering
+
+let _diveExitBtn = null;   // Reference to toggle-able HUD button
 
 // FIX: allocate one Raycaster and reuse it — avoids creating a new object on
 // every mousemove event (which fires at 60+ fps while the mouse is moving).
@@ -146,6 +149,7 @@ async function launch() {
     // 4. Compute stats
     const stats = computeStats(repos, commitMap);
     currentStats = stats;
+    activeCommitMap = commitMap;
     setProgress(92, 'Building galaxies...');
 
     // 5. Create Milky Way + gravitational center (adds atmosphere before galaxies appear)
@@ -224,8 +228,13 @@ function setProgress(pct, detail) {
 
 // ── HUD Controls ──
 document.getElementById('btn-home').addEventListener('click', () => {
-  resetCamera();
-  $galaxyPanel.classList.add('hidden');
+  if (isGalaxyDive()) {
+    exitGalaxy();
+    $galaxyPanel.classList.add('hidden');
+  } else {
+    resetCamera();
+    $galaxyPanel.classList.add('hidden');
+  }
 });
 
 document.getElementById('btn-share').addEventListener('click', () => {
@@ -319,7 +328,7 @@ function registerHover() {
         const name = group.userData.repoName;
         const meta = galaxyMeta.get(name);
         if (meta) {
-          flyTo(meta.position);
+          enterGalaxy(meta.position);
           showGalaxyDetail(meta);
         }
         break;
@@ -329,51 +338,47 @@ function registerHover() {
 }
 
 function showGalaxyDetail(meta) {
-  // ── Language bar ──
-  // Galaxy panel now shows colour-coded commit-type proportions sourced from
-  // the stats breakdown stored in meta.commitBreakdown (if present).
-  // Falls back to a single solid-colour bar using the galaxy's language colour.
+  // ── Commit type bar ──
   let langBarHTML = '';
   if (meta.commitBreakdown && Object.keys(meta.commitBreakdown).length > 0) {
     const COMMIT_BAR_COLORS = {
-      feature: '#4a9eff',
-      fix:     '#ffaa33',
-      refactor:'#4acfcf',
-      docs:    '#bbbbdd',
-      test:    '#5ce87a',
-      ci:      '#a06ef5',
-      style:   '#ff6ea8',
-      merge:   '#c9b06b',
-      other:   '#99aacc'
+      feature: '#4a9eff', fix: '#ffaa33', refactor:'#4acfcf', docs:'#bbbbdd',
+      test:'#5ce87a', ci:'#a06ef5', style:'#ff6ea8', merge:'#c9b06b', other:'#99aacc'
     };
     const total = Object.values(meta.commitBreakdown).reduce((a, b) => a + b, 0);
     const segments = Object.entries(meta.commitBreakdown)
-      .filter(([, v]) => v > 0)
-      .sort(([, a], [, b]) => b - a)
+      .filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a)
       .map(([type, count]) => {
-        const pct = ((count / total) * 100).toFixed(1);
-        const color = COMMIT_BAR_COLORS[type] || '#99aacc';
-        return `<div class="lang-bar-seg" style="width:${pct}%;background:${color};" title="${type}: ${count} (${pct}%)"></div>`;
+        const pct = ((count/ total)*100).toFixed(1);
+        return `<div class="lang-bar-seg" style="width:${pct}%;background:${COMMIT_BAR_COLORS[type]||'#99aacc'};" title="${type}: ${count} (${pct}%)"></div>`;
       }).join('');
-    const labels = Object.entries(meta.commitBreakdown)
-      .filter(([, v]) => v > 0)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 4)
-      .map(([type, count]) => {
-        const color = COMMIT_BAR_COLORS[type] || '#99aacc';
-        return `<span class="lang-dot" style="background:${color};"></span><span class="lang-label-text">${type} ${count}</span>`;
-      }).join('');
-    langBarHTML = `
-      <div class="lang-bar-wrap">
-        <div class="lang-bar">${segments}</div>
-        <div class="lang-legend">${labels}</div>
-      </div>`;
-  } else if (meta.language && meta.language !== 'Unknown') {
-    langBarHTML = `
-      <div class="lang-bar-wrap">
-        <div class="lang-bar"><div class="lang-bar-seg" style="width:100%;background:var(--gold);"></div></div>
-        <div class="lang-legend"><span class="lang-dot" style="background:var(--gold);"></span><span class="lang-label-text">${meta.language}</span></div>
-      </div>`;
+    langBarHTML = `<div class="lang-bar-wrap"><div class="lang-bar">${segments}</div></div>`;
+  }
+
+  // ── Recent commits (dive-mode only) ──
+  let commitsHTML = '';
+  const commits = activeCommitMap ? activeCommitMap.get(meta.name) || [] : [];
+  const recent = commits.slice(0, 6).map(c => ({
+    msg: (c.commit?.message || '').split('\n')[0].slice(0, 72),
+    type: classifyCommit(c.commit?.message || ''),
+    date: c.commit?.author?.date,
+    hash: c.sha?.slice(0, 7) || ''
+  }));
+  if (recent.length > 0) {
+    const COMMIT_COLORS = {
+      feature:'#4a9eff', fix:'#ffaa33', refactor:'#4acfcf', docs:'#bbbbdd',
+      test:'#5ce87a', ci:'#a06ef5', style:'#ff6ea8', merge:'#c9b06b', other:'#99aacc'
+    };
+    commitsHTML = `<div class="dive-commits">
+      <div class="dive-commits-header">RECENT COMMITS</div>
+      ` + recent.map(c => `
+        <div class="dive-commit">
+          <span class="dive-commit-dot" style="background:${COMMIT_COLORS[c.type]||'#99aacc'}"></span>
+          <span class="dive-commit-msg" title="${c.msg}"\u003e${c.msg}</span\u003e
+          <span class="dive-commit-meta"\u003e${formatRelative(c.date)} · ${c.hash}</span\u003e
+        </div>
+      `).join('') + `
+    </div>`;
   }
 
   $galaxyDetail.innerHTML = `
@@ -387,6 +392,7 @@ function showGalaxyDetail(meta) {
       <div class="galaxy-meta-item">🔀 <strong>${meta.forks}</strong></div>
       <div class="galaxy-meta-item">Last push <strong>${formatRelative(meta.lastPush)}</strong></div>
     </div>
+    ${commitsHTML}
     <a class="galaxy-link" href="https://github.com/${currentUser?.login}/${meta.name}" target="_blank" rel="noopener">↗ View on GitHub</a>
   `;
   $galaxyPanel.classList.remove('hidden');
