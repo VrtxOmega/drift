@@ -1,142 +1,194 @@
-// ══════════════════════════════════════════════════════
-// DRIFT — GitHub API Client v3
-// Proxied through Cloudflare Worker. No secrets here.
-// Worker handles PAT + caching server-side.
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// DRIFT — GitHub API Client v4 (GraphQL)
+// Single-call user+repos. Batched commit fetch. Zero REST chatter.
+// Token injected at build time via VITE_GITHUB_PAT env var.
+// ══════════════════════════════════════════════════════════════════
 
-// ── Replace with YOUR worker deploy URL ──
-const API = 'https://drift-proxy.vrtxomega.workers.dev';
+const GQL  = 'https://api.github.com/graphql';
 
-const PER_PAGE = 100;
-const MAX_REPOS = 60;
-const MAX_COMMITS_PER_REPO = 200;
-
-const API_HEADERS = {
-  'Accept': 'application/vnd.github+json',
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'Accept':       'application/vnd.github+json',
+  'Authorization': `bearer ${import.meta.env.VITE_GITHUB_PAT || ''}`,
   'X-GitHub-Api-Version': '2022-11-28'
 };
 
-/**
- * Fetch through the DRIFT proxy.
- * Handles CORS, PAT, and rate-limit headers transparently.
- * @param {string} url — path + query (e.g. `/users/VrtxOmega`)
- * @returns {Promise<any>}
- */
-async function ghFetch(endpoint) {
-  const url = API + endpoint;
-  const res = await fetch(url, { headers: API_HEADERS });
+/* ── localStorage ETag cache keys ── */
+const etagKey = (u) => `drift_etag_${btoa(u)}`;
+const bodyKey = (u) => `drift_body_${btoa(u)}`;
+
+async function gqlFetch(query, variables = {}) {
+  const url = GQL;
+  const storedEtag = localStorage.getItem(etagKey(url));
+  const storedBody = storedEtag ? localStorage.getItem(bodyKey(url)) : null;
+
+  const opts = {
+    method: 'POST',
+    headers: { ...HEADERS },
+    body: JSON.stringify({ query, variables })
+  };
+  if (storedEtag) opts.headers['If-None-Match'] = storedEtag;
+
+  const res = await fetch(url, opts);
+
+  if (res.status === 304 && storedBody) {
+    return JSON.parse(storedBody);
+  }
 
   if (res.status === 403 || res.status === 429) {
-    const remaining = res.headers.get('X-RateLimit-Remaining');
     const reset = res.headers.get('X-RateLimit-Reset');
     const wait = reset ? Math.ceil((parseInt(reset) * 1000 - Date.now()) / 1000) : 60;
-    throw new Error(`RATE_LIMITED: retry in ${wait}s (remaining: ${remaining || '0'})`);
+    throw new Error(`RATE_LIMITED: retry in ${wait}s`);
   }
-  if (res.status === 404) throw new Error('USER_NOT_FOUND');
   if (!res.ok) throw new Error(`HTTP_${res.status}`);
 
-  return res.json();
-}
-
-/**
- * Fetch all pages of a paginated endpoint.
- * @param {string} endpoint — path without page param
- * @param {number} maxItems
- * @returns {Promise<any[]>}
- */
-async function ghFetchAll(endpoint, maxItems = PER_PAGE) {
-  const items = [];
-  let page = 1;
-  const sep = endpoint.includes('?') ? '&' : '?';
-  while (items.length < maxItems) {
-    const data = await ghFetch(`${endpoint}${sep}per_page=${PER_PAGE}&page=${page}`);
-    if (!data.length) break;
-    items.push(...data);
-    if (data.length < PER_PAGE) break;
-    page++;
+  const etag = res.headers.get('ETag');
+  const json = await res.json();
+  if (etag) {
+    try {
+      localStorage.setItem(etagKey(url), etag);
+      localStorage.setItem(bodyKey(url), JSON.stringify(json));
+    } catch { purgeCache(); }
   }
-  return items.slice(0, maxItems);
+  return json;
 }
 
-/**
- * Fetch user profile.
- * @param {string} username
- * @returns {Promise<object>}
- */
+function purgeCache() {
+  Object.keys(localStorage).filter(k => k.startsWith('drift_')).forEach(k => localStorage.removeItem(k));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PUBLIC API
+   ═══════════════════════════════════════════════════════════════ */
+
 export async function fetchUser(username) {
-  return ghFetch(`/users/${username}`);
+  const q = `
+    query($login: String!) {
+      user(login: $login) {
+        login
+        avatarUrl
+        name
+        bio
+        followers { totalCount }
+        following { totalCount }
+      }
+    }
+  `;
+  const data = await gqlFetch(q, { login: username });
+  const u = data?.data?.user;
+  if (!u) throw new Error('USER_NOT_FOUND');
+  return {
+    login:      u.login,
+    avatar_url: u.avatarUrl,
+    name:       u.name,
+    bio:        u.bio,
+    followers:  u.followers?.totalCount,
+    following:  u.following?.totalCount
+  };
 }
 
-/**
- * Fetch user's public repositories (non-fork, sorted by push date).
- * @param {string} username
- * @param {function} onProgress
- * @returns {Promise<object[]>}
- */
 export async function fetchRepos(username, onProgress) {
   if (onProgress) onProgress('Fetching repositories...');
-  const repos = await ghFetchAll(
-    `/users/${username}/repos?type=owner&sort=pushed`,
-    MAX_REPOS
-  );
-  return repos
-    .filter(r => !r.fork && r.size > 0)
-    .sort((a, b) => (b.stargazers_count + b.size) - (a.stargazers_count + a.size));
-}
 
-/**
- * Fetch recent commits for a single repo.
- * @param {string} owner
- * @param {string} repo
- * @returns {Promise<object[]>}
- */
-export async function fetchCommits(owner, repo) {
-  try {
-    const since = new Date();
-    since.setFullYear(since.getFullYear() - 1);
-    return await ghFetchAll(
-      `/repos/${owner}/${repo}/commits?since=${since.toISOString()}`,
-      MAX_COMMITS_PER_REPO
-    );
-  } catch {
-    return [];
+  const allRepos = [];
+  let cursor = null;
+  const perPage = 30;
+
+  while (allRepos.length < 60) {
+    const q = `
+      query($login: String!, $first: Int!, $after: String) {
+        user(login: $login) {
+          repositories(first: $first, after: $after, ownerAffiliations: OWNER, orderBy: {field: PUSHED_AT, direction: DESC}) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              name
+              description
+              stargazerCount
+              forkCount
+              isFork
+              size
+              pushedAt
+              primaryLanguage { name }
+              languages(first: 6) { nodes { name } }
+              defaultBranchRef {
+                target {
+                  ... on Commit {
+                    history(first: 100) {
+                      totalCount
+                      nodes { oid committedDate message author { name } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const data = await gqlFetch(q, { login: username, first: perPage, after: cursor });
+    const repos = data?.data?.user?.repositories;
+    if (!repos) break;
+
+    for (const r of repos.nodes) {
+      if (!r.isFork && r.size > 0) {
+        const rawNodes = r.defaultBranchRef?.target?.history?.nodes || [];
+        const commits = rawNodes.map(node => ({
+          sha: node.oid,
+          commit: {
+            message: node.message,
+            author: {
+              date: node.committedDate,
+              name: node.author?.name || ''
+            }
+          }
+        }));
+
+        allRepos.push({
+          name:         r.name,
+          description:  r.description,
+          stargazers_count: r.stargazerCount,
+          forkCount:    r.forkCount,
+          size:         r.size,
+          pushedAt:     r.pushedAt,
+          language:     r.primaryLanguage?.name || null,
+          languages:    r.languages?.nodes.map(l => l.name) || [],
+          commits,
+          totalCommits: r.defaultBranchRef?.target?.history?.totalCount || 0
+        });
+      }
+    }
+
+    if (!repos.pageInfo.hasNextPage) break;
+    cursor = repos.pageInfo.endCursor;
+    if (allRepos.length >= 60) break;
   }
+
+  return allRepos
+    .sort((a, b) => (b.stargazers_count + b.size) - (a.stargazers_count + a.size))
+    .slice(0, 60);
 }
 
-/**
- * Fetch all commit data for all repos, with progress callback.
- * @param {string} username
- * @param {object[]} repos
- * @param {function} onProgress
- * @returns {Promise<Map<string, object[]>>}
- */
+export async function fetchCommits(owner, repo) {
+  return [];
+}
+
 export async function fetchAllCommits(username, repos, onProgress) {
   const commitMap = new Map();
-  const batchSize = 4;
-  for (let i = 0; i < repos.length; i += batchSize) {
-    const batch = repos.slice(i, i + batchSize);
+  let i = 0;
+  for (const r of repos) {
     if (onProgress) {
       const pct = Math.round((i / repos.length) * 100);
       onProgress(`Scanning commits... ${pct}% (${i}/${repos.length} repos)`);
     }
-    const results = await Promise.all(
-      batch.map(r => fetchCommits(username, r.name))
-    );
-    batch.forEach((r, j) => {
-      if (results[j].length > 0) {
-        commitMap.set(r.name, results[j]);
-      }
-    });
+    if (r.commits && r.commits.length) {
+      commitMap.set(r.name, r.commits);
+    }
+    i++;
   }
   return commitMap;
 }
 
-/**
- * Compute user stats from repo + commit data.
- * @param {object[]} repos
- * @param {Map<string, object[]>} commitMap
- * @returns {object}
- */
 export function computeStats(repos, commitMap) {
   let totalCommits = 0;
   const languageCounts = {};
@@ -156,47 +208,40 @@ export function computeStats(repos, commitMap) {
     }
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr     = new Date().toISOString().slice(0, 10);
   const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const sortedDesc = Object.keys(dailyCommits).sort().reverse();
+  const sortedDesc   = Object.keys(dailyCommits).sort().reverse();
 
   let streak = 0;
   if (sortedDesc.length > 0) {
     const anchor = sortedDesc[0] === todayStr ? todayStr
                  : sortedDesc[0] === yesterdayStr ? yesterdayStr
                  : null;
-
     if (anchor) {
       let cursor = new Date(anchor);
       for (const d of sortedDesc) {
         if (d === cursor.toISOString().slice(0, 10)) {
           streak++;
           cursor.setDate(cursor.getDate() - 1);
-        } else {
-          break;
-        }
+        } else { break; }
       }
     }
   }
 
-  let maxStreak = 0;
-  let cur = 0;
+  let maxStreak = 0, cur = 0;
   const allDates = Object.keys(dailyCommits).sort();
   for (let i = 0; i < allDates.length; i++) {
-    if (i === 0) {
-      cur = 1;
-    } else {
+    if (i === 0) { cur = 1; }
+    else {
       const prev = new Date(allDates[i - 1]);
       const curr = new Date(allDates[i]);
-      const gap = Math.floor((curr - prev) / 86400000);
+      const gap  = Math.floor((curr - prev) / 86400000);
       cur = gap === 1 ? cur + 1 : 1;
     }
     maxStreak = Math.max(maxStreak, cur);
   }
 
-  const topLang = Object.entries(languageCounts)
-    .sort((a, b) => b[1] - a[1])[0];
-
+  const topLang = Object.entries(languageCounts).sort((a, b) => b[1] - a[1])[0];
   const totalSize = Object.values(languageCounts).reduce((a, b) => a + b, 0) || 1;
   const languages = Object.entries(languageCounts)
     .sort((a, b) => b[1] - a[1])
@@ -208,7 +253,7 @@ export function computeStats(repos, commitMap) {
     totalRepos: repos.length,
     streak,
     maxStreak,
-    topLanguage: topLang ? topLang[0] : 'Unknown',
+    topLanguage:    topLang ? topLang[0] : 'Unknown',
     topLanguagePct: topLang ? Math.round((topLang[1] / totalSize) * 100) : 0,
     languages,
     dailyCommits,
