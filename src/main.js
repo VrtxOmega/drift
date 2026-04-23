@@ -154,8 +154,8 @@ async function launch() {
     createGalaxies(repos, commitMap, stats);
     setProgress(96, 'Drawing constellations...');
 
-    // 7. Create streak constellations
-    createConstellations(stats);
+    // 7. Create streak constellations (3D repo-linked)
+    createConstellations(stats, commitMap, repos);
     setProgress(100, 'Universe ready');
 
     // 8. Transition to HUD

@@ -133,7 +133,8 @@ export function createGalaxies(repos, commitMap, stats) {
       lastPush: repo.pushed_at,
       url: repo.html_url,
       position: pos,
-      commitBreakdown: breakdown
+      commitBreakdown: breakdown,
+      galaxySize
     });
   }
 }
@@ -404,131 +405,163 @@ const synapses = [];
  * v3: Pulsing lines, energy pulses traveling along curves,
  *     glowing nodes, electric gold + cyan highlights
  */
-export function createConstellations(stats) {
-  const dailyCommits = stats.dailyCommits;
-  const dates = Object.keys(dailyCommits).sort();
-  if (dates.length < 2) return;
-
-  // Find consecutive day streaks — minimum 4 days
-  const streaks = [];
-  let current = [dates[0]];
-
-  for (let i = 1; i < dates.length; i++) {
-    const prev = new Date(dates[i - 1]);
-    const curr = new Date(dates[i]);
-    const gap = Math.floor((curr - prev) / 86400000);
-    if (gap <= 1) {
-      current.push(dates[i]);
-    } else {
-      if (current.length >= 4) streaks.push([...current]);
-      current = [dates[i]];
+/**
+ * Create 3D repo-to-repo constellation arcs.
+ * v4: Links connect actual galaxy positions in 3D space.
+ *     Same-day commits and temporal proximity create the arcs.
+ *     Arcs bow outward from the universe center for depth.
+ */
+export function createConstellations(stats, commitMap, repos) {
+  // Build a map: date -> set of repo names with commits that day
+  const dayToRepos = new Map();
+  for (const [repoName, commits] of commitMap) {
+    if (!commits || commits.length === 0) continue;
+    for (const c of commits) {
+      const date = c.commit?.author?.date?.slice(0, 10);
+      if (!date) continue;
+      if (!dayToRepos.has(date)) dayToRepos.set(date, new Set());
+      dayToRepos.get(date).add(repoName);
     }
   }
-  if (current.length >= 4) streaks.push(current);
 
-  // Top 5 longest streaks
-  streaks.sort((a, b) => b.length - a.length);
-  const topStreaks = streaks.slice(0, 5);
+  // Compute link strength between every pair of repos
+  const linkStrength = new Map(); // key: "repoA|repoB" (sorted), value: strength
 
-  for (let si = 0; si < topStreaks.length; si++) {
-    const streak = topStreaks[si];
-    const intensity = Math.min(1, streak.length / 14);
+  // Same-day contribution strength
+  for (const [, repoSet] of dayToRepos) {
+    const repoList = Array.from(repoSet);
+    if (repoList.length < 2) continue;
+    for (let i = 0; i < repoList.length; i++) {
+      for (let j = i + 1; j < repoList.length; j++) {
+        const a = repoList[i];
+        const b = repoList[j];
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        linkStrength.set(key, (linkStrength.get(key) || 0) + 1);
+      }
+    }
+  }
 
-    // Map dates to 3D positions
-    const points = streak.map((d) => {
-      const dayOfYear = Math.floor((new Date(d) - new Date(d.slice(0, 4) + '-01-01')) / 86400000);
-      const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-      const y = 1 - (dayOfYear / 365) * 2;
-      const r = Math.sqrt(1 - y * y);
-      const theta = goldenAngle * dayOfYear;
-      return new THREE.Vector3(
-        r * Math.cos(theta) * 52,
-        y * 52,
-        r * Math.sin(theta) * 52
-      );
-    });
+  // Temporal proximity boost (repos pushed within 7 days)
+  const sortedByPush = [...repos].filter(r => r.pushed_at).sort((a, b) =>
+    new Date(a.pushed_at) - new Date(b.pushed_at)
+  );
+  for (let i = 0; i < sortedByPush.length - 1; i++) {
+    const r1 = sortedByPush[i];
+    const r2 = sortedByPush[i + 1];
+    const days = (new Date(r2.pushed_at) - new Date(r1.pushed_at)) / 86400000;
+    if (days <= 7) {
+      const key = r1.name < r2.name ? `${r1.name}|${r2.name}` : `${r2.name}|${r1.name}`;
+      const existing = linkStrength.get(key) || 0;
+      linkStrength.set(key, existing + (1 - days / 7) * 0.5);
+    }
+  }
 
-    // Smooth curve
-    const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.5);
-    const curvePoints = curve.getPoints(50);
-    const lineGeo = new THREE.BufferGeometry().setFromPoints(curvePoints);
-    lineGeo.setDrawRange(0, 0); // Start hidden for birth animation
+  // Convert to array and pick top links
+  const links = [];
+  for (const [key, strength] of linkStrength) {
+    const [from, to] = key.split('|');
+    links.push({ from, to, strength });
+  }
+  links.sort((a, b) => b.strength - a.strength);
+
+  const MAX_LINKS = Math.min(25, links.length);
+  const topLinks = links.slice(0, MAX_LINKS);
+
+  // For each link, create a 3D arc between the two galaxies
+  for (const link of topLinks) {
+    const meta1 = galaxyMeta.get(link.from);
+    const meta2 = galaxyMeta.get(link.to);
+    if (!meta1 || !meta2) continue;
+
+    const p1Raw = meta1.position;
+    const p2Raw = meta2.position;
+
+    // Offset endpoints slightly outward so lines don't start inside the galaxy
+    const offset1 = (meta1.galaxySize || 3) * 0.5;
+    const offset2 = (meta2.galaxySize || 3) * 0.5;
+    const p1 = p1Raw.clone().add(p1Raw.clone().normalize().multiplyScalar(offset1));
+    const p2 = p2Raw.clone().add(p2Raw.clone().normalize().multiplyScalar(offset2));
+
+    // Midpoint and outward direction (away from universe center)
+    const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+    const outward = mid.clone().normalize();
+    const dist = p1.distanceTo(p2);
+    const arcHeight = dist * 0.35;
+
+    // Build a curve that bows outward from the universe center
+    const cp1 = mid.clone().addScaledVector(outward, arcHeight);
+    const cp2 = mid.clone().addScaledVector(outward, arcHeight * 0.5);
+
+    const curve = new THREE.CatmullRomCurve3([p1, cp1, cp2, p2], false, 'centripetal', 0.5);
+    const points = curve.getPoints(50);
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+    lineGeo.setDrawRange(0, 0);
+
+    // Intensity based on link strength (0.3 to 1.0)
+    const intensity = Math.min(1, 0.3 + link.strength * 0.2);
 
     // ── 1. BASE LINE: electric gold ──
     const lineMat = new THREE.LineBasicMaterial({
       color: new THREE.Color(0xffc850),
       transparent: true,
-      opacity: 0.30 + intensity * 0.30,
+      opacity: 0.25 + intensity * 0.25,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
     const line = new THREE.Line(lineGeo, lineMat);
     scene.add(line);
 
-    // ── 2. GLOW LINE: electric blue outer glow (gold + blue = electric) ──
+    // ── 2. GLOW LINE: electric blue outer glow ──
     const glowMat = new THREE.LineBasicMaterial({
       color: new THREE.Color(0x4a9eff),
       transparent: true,
-      opacity: 0.06 + intensity * 0.10,
+      opacity: 0.05 + intensity * 0.08,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       linewidth: 1
     });
     const glowLine = new THREE.Line(lineGeo.clone(), glowMat);
-    glowLine.geometry.setDrawRange(0, 0); // Start hidden for birth animation
+    glowLine.geometry.setDrawRange(0, 0);
     scene.add(glowLine);
 
-    // ── 3. MEANINGFUL NODES: each dot = a commit day, sized by commits that day ──
-    // FIX: store both the mesh AND the material so visibility can be set on the mesh.
-    const nodeMats = [];   // materials — for opacity animation
-    const nodeMeshes = []; // meshes   — for visibility toggling (was broken before)
-    for (let ni = 0; ni < points.length; ni++) {
-      const dayDate = streak[ni];
-      const dayCommits = dailyCommits[dayDate] || 1;
-      // Size scales with significance: 1 commit = small, 10+ = large
-      const nodeRadius = 0.35 + Math.min(dayCommits / 8, 0.8) + intensity * 0.15;
-      const nodeGeo = new THREE.IcosahedronGeometry(nodeRadius, 0); // Geometric mesh hub instead of flat sphere
-      // Color shifts: low commits = blue-white, high commits = hot gold
-      const commitHeat = Math.min(1, dayCommits / 10);
-      const nodeColor = new THREE.Color().lerpColors(
-        new THREE.Color(0x88bbff),  // cool blue (few commits)
-        new THREE.Color(0xffd700),  // hot gold (many commits)
-        commitHeat
-      );
-      const nodeMat = new THREE.MeshBasicMaterial({
-        color: nodeColor,
-        transparent: true,
-        opacity: 0.7 + commitHeat * 0.3,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        wireframe: true // Creates the intricate connection feel
-      });
-      const node = new THREE.Mesh(nodeGeo, nodeMat);
-      node.position.copy(points[ni]);
-      node.visible = false; // Hide initially for birth animation
-      scene.add(node);
-      nodeMats.push(nodeMat);
-      nodeMeshes.push(node); // FIX: track the mesh, not just the material
-    }
+    // ── 3. APEX NODE: single icosahedron at the arc peak ──
+    const apexPos = curve.getPointAt(0.5);
+    const apexRadius = 0.4 + intensity * 0.3;
+    const apexGeo = new THREE.IcosahedronGeometry(apexRadius, 0);
+    const apexColor = new THREE.Color().lerpColors(
+      new THREE.Color(0xffc850), // gold
+      new THREE.Color(0x4a9eff), // blue
+      intensity
+    );
+    const apexMat = new THREE.MeshBasicMaterial({
+      color: apexColor,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      wireframe: true
+    });
+    const apexNode = new THREE.Mesh(apexGeo, apexMat);
+    apexNode.position.copy(apexPos);
+    apexNode.visible = false;
+    scene.add(apexNode);
 
-    // ── 4. ENERGY PULSES: particles that travel along the curve ──
-    // Multiple pulses per synapse, staggered
-    const pulseCount = 2 + Math.floor(intensity * 3); // 2-5 pulses
+    // ── 4. ENERGY PULSES ──
+    const pulseCount = 1 + Math.floor(intensity * 2); // 1-3 pulses
     const pulseMats = [];
     const pulseSprites = [];
     const pulsePhases = [];
 
-    // Create a glowing pulse texture
     const pulseCanvas = document.createElement('canvas');
     pulseCanvas.width = 64;
     pulseCanvas.height = 64;
     const pctx = pulseCanvas.getContext('2d');
     const pGrad = pctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    pGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');   // white-hot core
-    pGrad.addColorStop(0.08, 'rgba(180, 220, 255, 0.95)'); // electric blue flash
-    pGrad.addColorStop(0.2, 'rgba(255, 200, 80, 0.7)');   // gold ring
-    pGrad.addColorStop(0.4, 'rgba(255, 170, 50, 0.3)');    // amber
-    pGrad.addColorStop(0.65, 'rgba(74, 158, 255, 0.08)');  // blue ember
+    pGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+    pGrad.addColorStop(0.08, 'rgba(180, 220, 255, 0.95)');
+    pGrad.addColorStop(0.2, 'rgba(255, 200, 80, 0.7)');
+    pGrad.addColorStop(0.4, 'rgba(255, 170, 50, 0.3)');
+    pGrad.addColorStop(0.65, 'rgba(74, 158, 255, 0.08)');
     pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     pctx.fillStyle = pGrad;
     pctx.fillRect(0, 0, 64, 64);
@@ -543,17 +576,16 @@ export function createConstellations(stats) {
         opacity: 0.0
       });
       const sprite = new THREE.Sprite(pMat);
-      const baseSize = 1.0 + intensity * 1.5;
+      const baseSize = 0.8 + intensity * 1.0;
       sprite.scale.set(baseSize, baseSize, 1);
-      sprite.position.copy(points[0]);
-      sprite.visible = false; // Hide initially for birth animation
+      sprite.position.copy(p1);
+      sprite.visible = false;
       scene.add(sprite);
       pulseMats.push(pMat);
       pulseSprites.push(sprite);
-      pulsePhases.push(pi / pulseCount); // stagger evenly
+      pulsePhases.push(pi / pulseCount);
     }
 
-    // Store synapse data for animation
     synapses.push({
       curve,
       curveGeo: lineGeo,
@@ -561,16 +593,16 @@ export function createConstellations(stats) {
       curveLength: curve.getLength(),
       lineMat,
       glowMat,
-      nodeMats,
-      nodeMeshes, // FIX: include mesh references for visibility control
+      nodeMats: [apexMat],
+      nodeMeshes: [apexNode],
       pulseSprites,
       pulseMats,
       pulsePhases,
       pulseCount,
       intensity,
-      speed: 0.08 + intensity * 0.12, // faster for longer streaks
-      nodePositions: points,
-      birthT: 0 // For chronological drawing
+      speed: 0.06 + intensity * 0.10,
+      nodePositions: [apexPos],
+      birthT: 0
     });
   }
 }
