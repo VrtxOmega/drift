@@ -128,9 +128,9 @@ export function createGalaxies(repos, commitMap, stats) {
       description: repo.description || 'No description',
       language: repo.language || 'Unknown',
       stars: repo.stargazers_count,
-      forks: repo.forks_count,
+      forks: repo.forkCount,
       commits: commits.length,
-      lastPush: repo.pushed_at,
+      lastPush: repo.pushedAt,
       url: repo.html_url,
       position: pos,
       commitBreakdown: breakdown,
@@ -443,13 +443,13 @@ export function createConstellations(stats, commitMap, repos) {
   }
 
   // Temporal proximity boost (repos pushed within 7 days)
-  const sortedByPush = [...repos].filter(r => r.pushed_at).sort((a, b) =>
-    new Date(a.pushed_at) - new Date(b.pushed_at)
+  const sortedByPush = [...repos].filter(r => r.pushedAt).sort((a, b) =>
+    new Date(a.pushedAt) - new Date(b.pushedAt)
   );
   for (let i = 0; i < sortedByPush.length - 1; i++) {
     const r1 = sortedByPush[i];
     const r2 = sortedByPush[i + 1];
-    const days = (new Date(r2.pushed_at) - new Date(r1.pushed_at)) / 86400000;
+    const days = (new Date(r2.pushedAt) - new Date(r1.pushedAt)) / 86400000;
     if (days <= 7) {
       const key = r1.name < r2.name ? `${r1.name}|${r2.name}` : `${r2.name}|${r1.name}`;
       const existing = linkStrength.get(key) || 0;

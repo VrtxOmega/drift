@@ -1,9 +1,9 @@
 // ══════════════════════════════════════════════════════
 // DRIFT — Share Card Generator
-// Renders a beautiful PNG share card from 3D scene + stats
+// Renders a beautiful PNG share card from 3D scene snapshot + stats
 // ══════════════════════════════════════════════════════
 
-import { renderer } from './scene.js';
+import { captureSnapshot } from './scene.js';
 
 /**
  * Render a share card to the share canvas.
@@ -12,112 +12,96 @@ import { renderer } from './scene.js';
  * @param {object} stats
  */
 export function renderShareCard(shareCanvas, user, stats) {
-  const SCALE = 2; // High-DPI export
-  const W = 1200;
-  const H = 630;
+  const W = 2400;   // Export at 2× for high DPI
+  const H = 1260;
 
-  shareCanvas.width = W * SCALE;
-  shareCanvas.height = H * SCALE;
+  shareCanvas.width = W;
+  shareCanvas.height = H;
   const ctx = shareCanvas.getContext('2d');
 
-  // Scale logical drawing context so all standard coordinates work normally
-  ctx.scale(SCALE, SCALE);
-
-  // ── Background ──
-  ctx.fillStyle = '#060610';
-  ctx.fillRect(0, 0, W, H);
-
-  // Subtle gradient overlay
-  const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.6);
-  grad.addColorStop(0, 'rgba(30, 20, 60, 0.3)');
-  grad.addColorStop(1, 'rgba(6, 6, 16, 0)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  // ── 3D Scene Snapshot ──
+  // ── 3D Scene Snapshot (clean, no bloom, hi-res) ──
+  let sceneImg;
   try {
-    const sceneImg = renderer.domElement;
-    ctx.globalAlpha = 0.6;
-    ctx.drawImage(sceneImg, 0, 0, W, H);
-    ctx.globalAlpha = 1.0;
+    sceneImg = captureSnapshot(W, H);
   } catch (e) {
-    // Fallback: just use the gradient
+    sceneImg = null;
+  }
+
+  if (sceneImg) {
+    ctx.drawImage(sceneImg, 0, 0, W, H);
+  } else {
+    // Fallback solid background
+    ctx.fillStyle = '#060610';
+    ctx.fillRect(0, 0, W, H);
   }
 
   // ── Dark overlay for text readability ──
   const overlay = ctx.createLinearGradient(0, 0, 0, H);
-  overlay.addColorStop(0, 'rgba(6, 6, 16, 0.3)');
-  overlay.addColorStop(0.5, 'rgba(6, 6, 16, 0.1)');
-  overlay.addColorStop(0.85, 'rgba(6, 6, 16, 0.7)');
-  overlay.addColorStop(1, 'rgba(6, 6, 16, 0.9)');
+  overlay.addColorStop(0,   'rgba(6, 6, 16, 0.25)');
+  overlay.addColorStop(0.5, 'rgba(6, 6, 16, 0.05)');
+  overlay.addColorStop(0.85,'rgba(6, 6, 16, 0.65)');
+  overlay.addColorStop(1,   'rgba(6, 6, 16, 0.88)');
   ctx.fillStyle = overlay;
   ctx.fillRect(0, 0, W, H);
 
   // ── Top-left: DRIFT branding ──
   ctx.fillStyle = '#c9b06b';
-  ctx.font = '500 24px Georgia, serif';
-  ctx.fillText('Ω', 40, 52);
+  ctx.font = '500 48px Georgia, serif';
+  ctx.fillText('Ω', 80, 104);
   ctx.fillStyle = '#8a8aa0';
-  ctx.font = '600 14px Inter, sans-serif';
-  ctx.letterSpacing = '4px';
-  ctx.fillText('DRIFT', 68, 50);
+  ctx.font = '600 28px Inter, sans-serif';
+  ctx.fillText('DRIFT', 136, 100);
 
   // ── Top-right: username ──
   ctx.fillStyle = '#e8e6e3';
-  ctx.font = '500 14px Inter, sans-serif';
+  ctx.font = '500 28px Inter, sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText(`@${user.login}`, W - 90, 55);
+  ctx.fillText(`@${user.login}`, W - 180, 110);
   ctx.textAlign = 'left';
 
-  // ── Top-right: actual avatar image (async — draw placeholder immediately, replace when loaded) ──
-  const avatarSize = 40;
-  const ax = W - 40 - avatarSize;
-  const ay = 30;
-
-  // Draw placeholder circle first (visible immediately)
-  ctx.beginPath();
-  ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a1a2e';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(201, 176, 107, 0.3)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // FIX: actually load and draw the avatar image.
-  // The original code only drew the placeholder circle and never fetched the image.
+  // ── Top-right: avatar image ──
+  const avatarSize = 80;
+  const ax = W - 140 - avatarSize;
+  const ay = 60;
   if (user.avatar_url) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      // Clip to circle and draw over the placeholder
       ctx.save();
       ctx.beginPath();
       ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
       ctx.clip();
       ctx.drawImage(img, ax, ay, avatarSize, avatarSize);
       ctx.restore();
-      // Re-draw the border ring on top of the image
       ctx.beginPath();
       ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(201, 176, 107, 0.5)';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 3;
       ctx.stroke();
     };
     img.src = user.avatar_url;
   }
+  // placeholder
+  ctx.beginPath();
+  ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(201, 176, 107, 0.3)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
   // ── Center: YOUR UNIVERSE ──
   ctx.fillStyle = '#c9b06b';
   ctx.textAlign = 'center';
-  ctx.font = '300 12px Georgia, serif';
-  ctx.fillText('Ω', W / 2 - 90, H * 0.45);
-  ctx.fillText('Ω', W / 2 + 90, H * 0.45);
-  ctx.font = '300 12px Inter, sans-serif';
+  ctx.font = '300 24px Georgia, serif';
+  ctx.fillText('Ω', W / 2 - 180, H * 0.45);
+  ctx.fillText('Ω', W / 2 + 180, H * 0.45);
+  ctx.font = '300 24px Inter, sans-serif';
   ctx.fillText('Y O U R   U N I V E R S E', W / 2, H * 0.45);
   ctx.textAlign = 'left';
 
   // ── Bottom stats bar ──
-  const statsY = H - 100;
+  const statsY = H - 200;
   const statData = [
     { value: stats.totalCommits.toLocaleString(), label: 'COMMITS' },
     { value: stats.totalRepos.toString(), label: 'REPOS' },
@@ -130,30 +114,30 @@ export function renderShareCard(shareCanvas, user, stats) {
   statData.forEach((s, i) => {
     const x = statWidth * (i + 0.8);
     ctx.fillStyle = '#e8e6e3';
-    ctx.font = '700 28px Inter, sans-serif';
+    ctx.font = '700 56px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(s.value, x, statsY);
     ctx.fillStyle = '#4a4a6a';
-    ctx.font = '500 9px Inter, sans-serif';
-    ctx.fillText(s.label, x, statsY + 18);
+    ctx.font = '500 18px Inter, sans-serif';
+    ctx.fillText(s.label, x, statsY + 36);
   });
   ctx.textAlign = 'left';
 
   // ── Bottom tagline ──
   ctx.fillStyle = '#4a4a6a';
   ctx.textAlign = 'center';
-  ctx.font = '400 10px Georgia, serif';
-  ctx.fillText('Ω', W / 2 - 120, H - 24);
-  ctx.font = '400 10px Inter, sans-serif';
-  ctx.fillText('DRIFT — your code has a pulse  ·  drift.veritas.dev', W / 2 + 8, H - 24);
+  ctx.font = '400 20px Georgia, serif';
+  ctx.fillText('Ω', W / 2 - 240, H - 48);
+  ctx.font = '400 20px Inter, sans-serif';
+  ctx.fillText('DRIFT — your code has a pulse  ·  vrtxomega.github.io/drift', W / 2 + 16, H - 48);
   ctx.textAlign = 'left';
 
   // ── Gold border lines ──
   ctx.strokeStyle = 'rgba(201, 176, 107, 0.15)';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(40, H - 130);
-  ctx.lineTo(W - 40, H - 130);
+  ctx.moveTo(80, H - 260);
+  ctx.lineTo(W - 80, H - 260);
   ctx.stroke();
 }
 

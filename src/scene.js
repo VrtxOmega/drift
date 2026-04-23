@@ -39,6 +39,54 @@ const TWEEN_DURATION = 1.5;
 const updateCallbacks = [];
 
 /**
+ * Render a clean, high-resolution snapshot for export (share card, PNG).
+ * Temporarily resizes the renderer, renders one frame without bloom,
+ * then restores the original state.
+ * @param {number} width  Export width in pixels
+ * @param {number} height Export height in pixels
+ * @returns {HTMLCanvasElement} A new canvas containing the snapshot
+ */
+export function captureSnapshot(width, height) {
+  if (!renderer || !scene || !camera) throw new Error('Scene not initialised');
+
+  // ── Save state ──
+  const oldW = renderer.domElement.width;
+  const oldH = renderer.domElement.height;
+  const oldPixelRatio = renderer.getPixelRatio();
+  const oldAspect = camera.aspect;
+
+  // ── Resize renderer to exact export dimensions ──
+  renderer.setPixelRatio(1);
+  renderer.setSize(width, height);
+
+  // ── Adjust camera aspect to match export ratio ──
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+
+  // ── Render one clean frame (no bloom, direct renderer output) ──
+  renderer.render(scene, camera);
+
+  // ── Clone the pixel data into a new offscreen canvas ──
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = width;
+  exportCanvas.height = height;
+  const eCtx = exportCanvas.getContext('2d');
+  eCtx.drawImage(renderer.domElement, 0, 0);
+
+  // ── Restore state ──
+  // onResize() would query window.innerWidth/innerHeight, but the window
+  // hasn't actually resized — only the renderer was temporarily adjusted.
+  // Re-apply the saved pixel ratio first, then restore sizes using the
+  // stored pre-swap values.
+  renderer.setPixelRatio(oldPixelRatio);
+  renderer.setSize(oldW / oldPixelRatio, oldH / oldPixelRatio);
+  camera.aspect = oldAspect;
+  camera.updateProjectionMatrix();
+
+  return exportCanvas;
+}
+
+/**
  * Initialize the Three.js scene, camera, renderer + bloom pipeline.
  * @param {HTMLCanvasElement} canvas
  */

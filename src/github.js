@@ -151,6 +151,7 @@ export async function fetchRepos(username, onProgress) {
           forkCount:    r.forkCount,
           size:         r.diskUsage,
           pushedAt:     r.pushedAt,
+          html_url:     `https://github.com/${username}/${r.name}`,
           language:     r.primaryLanguage?.name || null,
           languages:    r.languages?.nodes.map(l => l.name) || [],
           commits,
