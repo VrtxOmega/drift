@@ -134,7 +134,7 @@ export function createGalaxies(repos, commitMap, stats) {
       url: repo.html_url,
       position: pos,
       commitBreakdown: breakdown,
-      galaxySize
+      galaxySize: group.userData.galaxySize
     });
   }
 }
@@ -227,6 +227,7 @@ function createSingleGalaxy(repo, commits, position, maxCommits) {
   // Scale galaxy size: minimum 3 (never tiny), max 7
   const relSize = commits.length / maxCommits;
   const galaxySize = 3 + relSize * 4;
+  group.userData.galaxySize = galaxySize;
   const isSpiral = commits.length > 15;
 
   // SPARSE AMPLIFICATION: fewer commits = bigger individual star impact

@@ -9,6 +9,8 @@ import { createBackgroundStars, createMilkyWay, updateAmbientBreathing } from '.
 import { createGalaxies, createConstellations, updateConstellations, galaxyGroups, galaxyMeta, setHoveredGalaxy, getGalaxyRotationSpeed, createGravitationalCenter, updateGravitationalCenter } from './galaxy.js';
 import { renderShareCard, copyShareCard, downloadShareCard } from './share.js';
 import * as THREE from 'three';
+// HERMES_CACHE_BUST_001
+
 
 // ── DOM Elements ──
 const $landing    = document.getElementById('landing');
