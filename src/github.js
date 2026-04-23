@@ -106,7 +106,7 @@ export async function fetchRepos(username, onProgress) {
               stargazerCount
               forkCount
               isFork
-              size
+              diskUsage
               pushedAt
               primaryLanguage { name }
               languages(first: 6) { nodes { name } }
@@ -131,7 +131,7 @@ export async function fetchRepos(username, onProgress) {
     if (!repos) break;
 
     for (const r of repos.nodes) {
-      if (!r.isFork && r.size > 0) {
+      if (!r.isFork && r.diskUsage > 0) {
         const rawNodes = r.defaultBranchRef?.target?.history?.nodes || [];
         const commits = rawNodes.map(node => ({
           sha: node.oid,
@@ -149,7 +149,7 @@ export async function fetchRepos(username, onProgress) {
           description:  r.description,
           stargazers_count: r.stargazerCount,
           forkCount:    r.forkCount,
-          size:         r.size,
+          size:         r.diskUsage,
           pushedAt:     r.pushedAt,
           language:     r.primaryLanguage?.name || null,
           languages:    r.languages?.nodes.map(l => l.name) || [],
