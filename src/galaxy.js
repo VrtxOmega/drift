@@ -468,7 +468,7 @@ export function createConstellations(stats, commitMap, repos) {
   const MAX_LINKS = Math.min(25, links.length);
   const topLinks = links.slice(0, MAX_LINKS);
 
-  // For each link, create a 3D arc between the two galaxies
+  // For each link, create a crystalline synapse bridge between the two galaxies
   for (const link of topLinks) {
     const meta1 = galaxyMeta.get(link.from);
     const meta2 = galaxyMeta.get(link.to);
@@ -477,139 +477,148 @@ export function createConstellations(stats, commitMap, repos) {
     const p1Raw = meta1.position;
     const p2Raw = meta2.position;
 
-    // Offset endpoints slightly outward so lines don't start inside the galaxy
+    // Offset endpoints slightly outward so crystals don't start inside the galaxy
     const offset1 = (meta1.galaxySize || 3) * 0.5;
     const offset2 = (meta2.galaxySize || 3) * 0.5;
     const p1 = p1Raw.clone().add(p1Raw.clone().normalize().multiplyScalar(offset1));
     const p2 = p2Raw.clone().add(p2Raw.clone().normalize().multiplyScalar(offset2));
 
-    // Midpoint and outward direction (away from universe center)
-    const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-    const outward = mid.clone().normalize();
     const dist = p1.distanceTo(p2);
-    const arcHeight = dist * 0.35;
-
-    // Build a curve that bows outward from the universe center
-    const cp1 = mid.clone().addScaledVector(outward, arcHeight);
-    const cp2 = mid.clone().addScaledVector(outward, arcHeight * 0.5);
-
-    const curve = new THREE.CatmullRomCurve3([p1, cp1, cp2, p2], false, 'centripetal', 0.5);
-    const points = curve.getPoints(50);
-    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-    lineGeo.setDrawRange(0, 0);
-
-    // Intensity based on link strength (0.3 to 1.0)
     const intensity = Math.min(1, 0.3 + link.strength * 0.2);
 
-    // ── 1. BASE LINE: electric gold ──
-    const lineMat = new THREE.LineBasicMaterial({
+    // ══════════════════════════════════════════════════════
+    // 1. FAINT BACKBONE — straight line, almost invisible
+    // ══════════════════════════════════════════════════════
+    const spineGeo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+    const spineMat = new THREE.LineBasicMaterial({
       color: new THREE.Color(0xffc850),
       transparent: true,
-      opacity: 0.25 + intensity * 0.25,
+      opacity: 0.04 + intensity * 0.04,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
-    const line = new THREE.Line(lineGeo, lineMat);
-    scene.add(line);
+    const spineLine = new THREE.Line(spineGeo, spineMat);
+    scene.add(spineLine);
 
-    // ── 2. GLOW LINE: electric blue outer glow ──
-    const glowMat = new THREE.LineBasicMaterial({
-      color: new THREE.Color(0x4a9eff),
-      transparent: true,
-      opacity: 0.05 + intensity * 0.08,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      linewidth: 1
-    });
-    const glowLine = new THREE.Line(lineGeo.clone(), glowMat);
-    glowLine.geometry.setDrawRange(0, 0);
-    scene.add(glowLine);
+    // ══════════════════════════════════════════════════════
+    // 2. CRYSTAL NODES — static faceted gems along the path
+    //    Icosahedrons + Octahedrons, wireframe, gold→blue
+    // ══════════════════════════════════════════════════════
+    const crystalCount = 3 + Math.floor(intensity * 4); // 3-7 crystals
+    const nodeMeshes = [];
+    const nodeMats = [];
+    const nodePositions = [];
 
-    // ── 3. APEX NODE: single icosahedron at the arc peak ──
-    const apexPos = curve.getPointAt(0.5);
-    const apexRadius = 0.4 + intensity * 0.3;
-    const apexGeo = new THREE.IcosahedronGeometry(apexRadius, 0);
-    const apexColor = new THREE.Color().lerpColors(
-      new THREE.Color(0xffc850), // gold
-      new THREE.Color(0x4a9eff), // blue
-      intensity
-    );
-    const apexMat = new THREE.MeshBasicMaterial({
-      color: apexColor,
-      transparent: true,
-      opacity: 0.7,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      wireframe: true
-    });
-    const apexNode = new THREE.Mesh(apexGeo, apexMat);
-    apexNode.position.copy(apexPos);
-    apexNode.visible = false;
-    scene.add(apexNode);
+    for (let ci = 0; ci < crystalCount; ci++) {
+      const t = ci / (crystalCount - 1 || 1);
+      const pos = new THREE.Vector3().lerpVectors(p1, p2, t);
 
-    // ── 4. ENERGY PULSES ──
-    const pulseCount = 1 + Math.floor(intensity * 2); // 1-3 pulses
-    const pulseMats = [];
-    const pulseSprites = [];
-    const pulsePhases = [];
+      // Slight outward jitter for organic feel
+      const jitter = (Math.random() - 0.5) * dist * 0.08;
+      pos.y += jitter;
 
-    const pulseCanvas = document.createElement('canvas');
-    pulseCanvas.width = 64;
-    pulseCanvas.height = 64;
-    const pctx = pulseCanvas.getContext('2d');
-    const pGrad = pctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    pGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
-    pGrad.addColorStop(0.08, 'rgba(180, 220, 255, 0.95)');
-    pGrad.addColorStop(0.2, 'rgba(255, 200, 80, 0.7)');
-    pGrad.addColorStop(0.4, 'rgba(255, 170, 50, 0.3)');
-    pGrad.addColorStop(0.65, 'rgba(74, 158, 255, 0.08)');
-    pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    pctx.fillStyle = pGrad;
-    pctx.fillRect(0, 0, 64, 64);
-    const pulseTex = new THREE.CanvasTexture(pulseCanvas);
+      const isIco = ci % 2 === 0; // alternate shapes
+      const radius = (0.25 + Math.random() * 0.25) + intensity * 0.35;
+      const geo = isIco
+        ? new THREE.IcosahedronGeometry(radius, 0)
+        : new THREE.OctahedronGeometry(radius, 0);
 
-    for (let pi = 0; pi < pulseCount; pi++) {
-      const pMat = new THREE.SpriteMaterial({
-        map: pulseTex,
+      const color = new THREE.Color().lerpColors(
+        new THREE.Color(0xffc850), // gold
+        new THREE.Color(0x4a9eff), // blue
+        intensity * (0.3 + t * 0.7) // gradient along path
+      );
+
+      const mat = new THREE.MeshBasicMaterial({
+        color,
         transparent: true,
+        opacity: 0.0, // start invisible, reveal during birth
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        opacity: 0.0
+        wireframe: true
       });
-      const sprite = new THREE.Sprite(pMat);
-      const baseSize = 0.8 + intensity * 1.0;
-      sprite.scale.set(baseSize, baseSize, 1);
-      sprite.position.copy(p1);
-      sprite.visible = false;
-      scene.add(sprite);
-      pulseMats.push(pMat);
-      pulseSprites.push(sprite);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(pos);
+      mesh.visible = true;
+      // Each crystal gets its own tumble rotation offset
+      mesh.userData = {
+        rotSpeed: {
+          x: (Math.random() - 0.5) * 0.8,
+          y: (Math.random() - 0.5) * 0.8,
+          z: (Math.random() - 0.5) * 0.8
+        },
+        revealT: t // birth sequence: reveal when birthT passes this
+      };
+      scene.add(mesh);
+
+      nodeMeshes.push(mesh);
+      nodeMats.push(mat);
+      nodePositions.push(pos.clone());
+    }
+
+    // ══════════════════════════════════════════════════════
+    // 3. TRAVELING CRYSTAL PULSES — 3D gems that move p1→p2
+    // ══════════════════════════════════════════════════════
+    const pulseCount = 1 + Math.floor(intensity * 2); // 1-3 pulses
+    const pulseMeshes = [];
+    const pulseMats = [];
+    const pulsePhases = [];
+
+    for (let pi = 0; pi < pulseCount; pi++) {
+      const isIco = pi % 2 === 0;
+      const radius = 0.3 + intensity * 0.4;
+      const geo = isIco
+        ? new THREE.IcosahedronGeometry(radius, 0)
+        : new THREE.OctahedronGeometry(radius, 0);
+
+      const color = new THREE.Color().lerpColors(
+        new THREE.Color(0xffffff), // bright core
+        new THREE.Color(0x4a9eff), // electric blue
+        intensity
+      );
+
+      const mat = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        wireframe: true
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(p1);
+      mesh.visible = false;
+      mesh.userData = {
+        rotSpeed: { x: 2.0, y: 1.5, z: 1.0 } // fast tumble
+      };
+      scene.add(mesh);
+
+      pulseMeshes.push(mesh);
+      pulseMats.push(mat);
       pulsePhases.push(pi / pulseCount);
     }
 
     synapses.push({
-      curve,
-      curveGeo: lineGeo,
-      glowGeo: glowLine.geometry,
-      curveLength: curve.getLength(),
-      lineMat,
-      glowMat,
-      nodeMats: [apexMat],
-      nodeMeshes: [apexNode],
-      pulseSprites,
+      p1,
+      p2,
+      dist,
+      spineMat,
+      nodeMeshes,
+      nodeMats,
+      nodePositions,
+      pulseMeshes,
       pulseMats,
       pulsePhases,
       pulseCount,
       intensity,
       speed: 0.06 + intensity * 0.10,
-      nodePositions: [apexPos],
       birthT: 0
     });
   }
 }
 
 /**
- * Update all constellation synapses each frame.
+ * Update all crystalline synapses each frame.
  * Call this from the render loop via onUpdate.
  * @param {number} dt - Delta time
  * @param {number} elapsed - Total elapsed time
@@ -617,61 +626,77 @@ export function createConstellations(stats, commitMap, repos) {
 export function updateConstellations(dt, elapsed) {
   for (const syn of synapses) {
     // ── Execute Birth Sequence ──
+    // Crystals cascade-reveal from p1 to p2 over 2 seconds
     if (syn.birthT < 1.0) {
-      syn.birthT += dt / 2.0; // 2 seconds trace
+      syn.birthT += dt / 2.0;
       if (syn.birthT > 1.0) syn.birthT = 1.0;
-
       const ea = 1 - Math.pow(1 - syn.birthT, 3);
-      const ptsCount = Math.floor(ea * 51); // 50 segments = 51 points
-      syn.curveGeo.setDrawRange(0, ptsCount);
-      syn.glowGeo.setDrawRange(0, ptsCount);
 
-      // FIX: reveal nodes by setting visible on the MESH, not the material.
-      // Previously this wrote to nodeMat.visible which does nothing in Three.js.
+      // Reveal spine line
+      syn.spineMat.opacity = (0.04 + syn.intensity * 0.04) * ea;
+
+      // Cascade: reveal crystals whose revealT <= birthT
       for (let ni = 0; ni < syn.nodeMeshes.length; ni++) {
-        const nodeProg = ni / (syn.nodeMeshes.length - 1 || 1);
-        syn.nodeMeshes[ni].visible = ea >= nodeProg;
+        const reveal = syn.nodeMeshes[ni].userData.revealT;
+        const prog = (ea - reveal * 0.9) / 0.1; // each crystal fades in over 0.1
+        syn.nodeMats[ni].opacity = Math.max(0, Math.min(1, prog)) * (0.5 + syn.intensity * 0.3);
       }
 
-      // Reveal pulses only when animation creates space
-      if (ea > 0.1) {
-        for (const sprite of syn.pulseSprites) {
-          sprite.visible = true;
+      // Reveal traveling pulses after some crystals exist
+      if (ea > 0.15) {
+        for (const mesh of syn.pulseMeshes) {
+          mesh.visible = true;
         }
       }
     }
 
-    // ── Pulse base line opacity ──
-    const basePulse = 0.5 + 0.5 * Math.sin(elapsed * 1.5 + syn.intensity * 10);
-    syn.lineMat.opacity = (0.20 + syn.intensity * 0.25) * (0.6 + basePulse * 0.4);
-    syn.glowMat.opacity = (0.06 + syn.intensity * 0.10) * (0.4 + basePulse * 0.6);
+    // ── Animate static crystal nodes ──
+    // Slow tumble rotation + subtle opacity breathing
+    for (let ni = 0; ni < syn.nodeMeshes.length; ni++) {
+      const mesh = syn.nodeMeshes[ni];
+      const rs = mesh.userData.rotSpeed;
+      mesh.rotation.x += rs.x * dt;
+      mesh.rotation.y += rs.y * dt;
+      mesh.rotation.z += rs.z * dt;
 
-    // ── Pulse node glow ──
-    for (let ni = 0; ni < syn.nodeMats.length; ni++) {
-      const nodePhase = elapsed * 2.0 + ni * 1.7;
+      // Opacity: base + gentle sine wave
+      const nodePhase = elapsed * 1.5 + ni * 1.3;
       const nodePulse = 0.5 + 0.5 * Math.sin(nodePhase);
-      syn.nodeMats[ni].opacity = 0.3 + nodePulse * 0.6 * syn.intensity;
+      const targetOpacity = syn.birthT >= 1.0
+        ? (0.3 + nodePulse * 0.5) * (0.4 + syn.intensity * 0.5)
+        : syn.nodeMats[ni].opacity;
+      syn.nodeMats[ni].opacity = targetOpacity;
     }
 
-    // ── Move energy pulses along the curve ──
+    // ── Animate traveling crystal pulses ──
+    // Gems move straight from p1 to p2, fast-rotating, fading at ends
     for (let pi = 0; pi < syn.pulseCount; pi++) {
-      // Advance phase
       syn.pulsePhases[pi] += dt * syn.speed;
       if (syn.pulsePhases[pi] > 1.0) syn.pulsePhases[pi] -= 1.0;
 
       const t = syn.pulsePhases[pi];
-      const pos = syn.curve.getPointAt(t);
-      syn.pulseSprites[pi].position.copy(pos);
+      const pos = new THREE.Vector3().lerpVectors(syn.p1, syn.p2, t);
+      syn.pulseMeshes[pi].position.copy(pos);
 
-      // Pulse intensity: bright in the middle of travel, fades at ends
-      const edgeFade = Math.min(t * 5, (1 - t) * 5, 1.0);
-      const flicker = 0.7 + 0.3 * Math.sin(elapsed * 8 + pi * 3.14);
+      // Fast rotation for sparkle
+      const mesh = syn.pulseMeshes[pi];
+      const rs = mesh.userData.rotSpeed;
+      mesh.rotation.x += rs.x * dt;
+      mesh.rotation.y += rs.y * dt;
+      mesh.rotation.z += rs.z * dt;
+
+      // Edge fade at endpoints, bright in middle
+      const edgeFade = Math.min(t * 6, (1 - t) * 6, 1.0);
+      const flicker = 0.6 + 0.4 * Math.sin(elapsed * 10 + pi * 3.14);
       syn.pulseMats[pi].opacity = edgeFade * flicker * (0.5 + syn.intensity * 0.5);
 
-      // Scale shimmer
-      const sizeBase = 1.0 + syn.intensity * 1.5;
-      const sizePulse = sizeBase * (0.8 + 0.4 * Math.sin(elapsed * 6 + pi * 2));
-      syn.pulseSprites[pi].scale.set(sizePulse, sizePulse, 1);
+      // Color shift: gold→white at peak travel
+      const travelColor = new THREE.Color().lerpColors(
+        new THREE.Color(0xffc850),
+        new THREE.Color(0xffffff),
+        Math.sin(t * Math.PI)
+      );
+      syn.pulseMats[pi].color.copy(travelColor);
     }
   }
 }
