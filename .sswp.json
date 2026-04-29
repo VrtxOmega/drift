@@ -1,0 +1,120 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-04-29T21:04:25.374Z",
+  "target": {
+    "name": "drift",
+    "repo": "/mnt/c/Veritas_Lab/drift",
+    "commitHash": "bb677ce71c617070762f1c7fc5ac315af9e0cbd4",
+    "branch": "main"
+  },
+  "environment": {
+    "nodeVersion": "v22.14.0",
+    "os": "linux",
+    "arch": "x64",
+    "ci": false
+  },
+  "dependencies": [
+    {
+      "name": "three",
+      "version": "0.183.2",
+      "resolved": "/mnt/c/Veritas_Lab/drift/node_modules/three",
+      "integrity": "36decc507ff2d533",
+      "suspicious": false,
+      "riskScore": 0.1
+    },
+    {
+      "name": "vite",
+      "version": "8.0.0",
+      "resolved": "/mnt/c/Veritas_Lab/drift/node_modules/vite",
+      "integrity": "36ee225a470be663",
+      "suspicious": false,
+      "riskScore": 0.1
+    }
+  ],
+  "gates": [
+    {
+      "gate": "GIT_INTEGRITY",
+      "status": "FAIL",
+      "evidence": "Modified files: 1",
+      "durationMs": 79
+    },
+    {
+      "gate": "LOCKFILE",
+      "status": "PASS",
+      "evidence": "package-lock.json present",
+      "durationMs": 1
+    },
+    {
+      "gate": "DETERMINISTIC_BUILD",
+      "status": "PASS",
+      "evidence": "Build succeeded: npm run build",
+      "durationMs": 1531
+    },
+    {
+      "gate": "TEST_PASS",
+      "status": "FAIL",
+      "evidence": "Tests failed: npm error Missing script: \"test\"\nnpm error\nnpm error To see a list of scripts, run:\nnpm error   npm run\nnpm error A complete log of this run can be found in: /home/veritas/.npm/_logs/2026-04-29T21_04_",
+      "durationMs": 134
+    },
+    {
+      "gate": "LINT",
+      "status": "PASS",
+      "evidence": "npx passed",
+      "durationMs": 2232
+    }
+  ],
+  "adversarial": {
+    "totalPackages": 2,
+    "suspiciousPackages": 0,
+    "probes": [
+      {
+        "package": "three",
+        "probe": "TYPO_SQUATTING",
+        "result": "PASS",
+        "detail": "Name heuristic clean"
+      },
+      {
+        "package": "three",
+        "probe": "VERSION_ANOMALY",
+        "result": "PASS",
+        "detail": "Pinned: 0.183.2"
+      },
+      {
+        "package": "three",
+        "probe": "METADATA_INTEGRITY",
+        "result": "PASS",
+        "detail": "Hash: 36decc507ff2d533"
+      },
+      {
+        "package": "vite",
+        "probe": "TYPO_SQUATTING",
+        "result": "PASS",
+        "detail": "Name heuristic clean"
+      },
+      {
+        "package": "vite",
+        "probe": "VERSION_ANOMALY",
+        "result": "PASS",
+        "detail": "Pinned: 8.0.0"
+      },
+      {
+        "package": "vite",
+        "probe": "METADATA_INTEGRITY",
+        "result": "PASS",
+        "detail": "Hash: 36ee225a470be663"
+      },
+      {
+        "package": "system",
+        "probe": "KIMI_REASONING",
+        "result": "INCONCLUSIVE",
+        "detail": "OLLAMA_CLOUD_API_KEY is not set. Skipping Kimi adversarial analysis."
+      }
+    ],
+    "overallRisk": 0
+  },
+  "seal": {
+    "chainHash": "6f47644020a6a7aa69ddaf8d2cb9cb5ebb2f08cbc6c5d73a3334f4a06ca2055e",
+    "sequence": 251
+  },
+  "signature": "bf213c47edf646972e1d462f6369a9b11fddd5071257f2dcdd3999c69d80ef5b"
+}
